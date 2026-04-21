@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <title>Cyber Security Control Center</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">CYBER SHIELD LAB</div>
+    <nav>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#playbook">Playbook</a>
+      <a href="#validator">Validator</a>
+      <a href="scanner.html">Scanner</a>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="dashboard">
+      <div class="hero-text">
+        <p class="tag">Threat-Informed Defense</p>
+        <h1>Secure-by-Default Cyber Security Website</h1>
+        <p>
+          Every file in this site contains security-focused code: strict client-side
+          validation, safe DOM rendering, URL checks, CSP settings, and defensive
+          JavaScript helpers.
+        </p>
+      </div>
+      <div class="status-card" aria-live="polite">
+        <h2>Security Status</h2>
+        <ul>
+          <li><span>CSP</span><strong>Enabled</strong></li>
+          <li><span>Input Sanitization</span><strong>Enabled</strong></li>
+          <li><span>Rate Limiting</span><strong>Enabled</strong></li>
+          <li><span>Unsafe HTML Injection</span><strong>Blocked</strong></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel-grid" id="playbook">
+      <article class="panel">
+        <h3>Secure URL Validation</h3>
+        <p>Only allows HTTP/HTTPS schemes and blocks malformed URLs.</p>
+        <code>isSafeUrl(input)</code>
+      </article>
+      <article class="panel">
+        <h3>Escaped Rendering</h3>
+        <p>All dynamic output is rendered as text, not raw HTML.</p>
+        <code>safeRender(element, content)</code>
+      </article>
+      <article class="panel">
+        <h3>Hash Utility</h3>
+        <p>Uses SHA-256 via Web Crypto API for integrity checks.</p>
+        <code>sha256Hex(value)</code>
+      </article>
+    </section>
+
+    <section class="validator" id="threat-feed-panel">
+      <h2>Threat Feed Panel</h2>
+      <p>Mock API data for recent cyber threat indicators.</p>
+      <button id="refreshThreatFeed" type="button">Refresh Feed</button>
+      <div class="result">
+        <h3>Latest Indicators</h3>
+        <pre id="threatFeedOutput">Loading threat feed...</pre>
+      </div>
+    </section>
+
+    <section class="validator" id="validator">
+      <h2>Security Validator</h2>
+      <p>Test a URL and generate a checksum for your note in a safe way.</p>
+
+      <form id="securityForm" novalidate>
+        <label for="urlInput">URL to validate</label>
+        <input id="urlInput" name="urlInput" type="url" autocomplete="off" placeholder="https://example.com" required maxlength="200" />
+
+        <label for="noteInput">Security note (max 300 chars)</label>
+        <textarea id="noteInput" name="noteInput" rows="4" maxlength="300" placeholder="Write a short secure note."></textarea>
+
+        <button type="submit">Run Security Check</button>
+      </form>
+
+      <div class="result">
+        <h3>Result</h3>
+        <pre id="resultOutput">Waiting for input...</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built for cyber security practice with secure coding patterns in every file.</p>
+    <p class="quick-links"><a href="scanner.html">Open Vulnerability Scanner</a> | <a href="login.html">Open Secure Login</a></p>
+  </footer>
+
+  <script src="security.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
