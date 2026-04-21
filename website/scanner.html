@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Vulnerability Scanner Simulation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">CYBER SHIELD LAB</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="scanner.html">Scanner</a>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="tag">Simulation</p>
+        <h1>Vulnerability Scanner</h1>
+        <p>Secure client-side simulation that validates inputs and produces mock findings in JSON format.</p>
+      </div>
+      <div class="status-card">
+        <h2>Scanner Controls</h2>
+        <ul>
+          <li><span>Target Validation</span><strong>Strict</strong></li>
+          <li><span>Output Rendering</span><strong>Escaped</strong></li>
+          <li><span>Execution</span><strong>Simulated</strong></li>
+          <li><span>Rate Limiting</span><strong>Enabled</strong></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="validator">
+      <h2>Run a Simulated Scan</h2>
+      <form id="scannerForm" novalidate>
+        <label for="targetInput">Target URL</label>
+        <input id="targetInput" type="url" required maxlength="200" placeholder="https://target.example" />
+
+        <label for="profileInput">Scan profile</label>
+        <select id="profileInput">
+          <option value="quick">Quick</option>
+          <option value="standard" selected>Standard</option>
+          <option value="deep">Deep</option>
+        </select>
+
+        <label for="portsInput">Ports (comma separated)</label>
+        <input id="portsInput" type="text" maxlength="80" placeholder="80,443,8080" />
+        <p class="inline-note">Only numeric ports 1-65535 are accepted.</p>
+
+        <button type="submit">Start Simulated Scan</button>
+      </form>
+
+      <div class="result">
+        <h3>Scan Result</h3>
+        <pre id="scanResultOutput">No scan started yet.</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>This scanner is for training and demo only. It does not probe real systems.</p>
+  </footer>
+
+  <script src="security.js" defer></script>
+  <script src="scanner.js" defer></script>
+</body>
+</html>

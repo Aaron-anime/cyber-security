@@ -17,6 +17,7 @@
       <a href="#dashboard">Dashboard</a>
       <a href="#playbook">Playbook</a>
       <a href="#validator">Validator</a>
+      <a href="#history">History</a>
       <a href="scanner.html">Scanner</a>
       <a href="login.html">Login</a>
     </nav>
@@ -64,11 +65,30 @@
 
     <section class="validator" id="threat-feed-panel">
       <h2>Threat Feed Panel</h2>
-      <p>Mock API data for recent cyber threat indicators.</p>
+      <p>Server API data for recent cyber threat indicators.</p>
       <button id="refreshThreatFeed" type="button">Refresh Feed</button>
       <div class="result">
         <h3>Latest Indicators</h3>
         <pre id="threatFeedOutput">Loading threat feed...</pre>
+      </div>
+    </section>
+
+    <section class="validator" id="history">
+      <h2>Persistent History Dashboard</h2>
+      <p>Live records pulled from SQLite-backed API endpoints.</p>
+      <div class="history-actions">
+        <button id="refreshScanHistory" type="button">Refresh Scan History</button>
+        <button id="refreshThreatAuditHistory" type="button">Refresh Threat Audit History</button>
+      </div>
+      <div class="history-grid">
+        <div class="result">
+          <h3>Recent Scan History</h3>
+          <pre id="scanHistoryOutput">Loading scan history...</pre>
+        </div>
+        <div class="result">
+          <h3>Recent Threat Feed Audits</h3>
+          <pre id="threatAuditHistoryOutput">Loading threat audit history...</pre>
+        </div>
       </div>
     </section>
 

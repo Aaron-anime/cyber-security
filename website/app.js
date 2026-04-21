@@ -13,6 +13,10 @@
   const resultOutput = document.getElementById("resultOutput");
   const threatFeedOutput = document.getElementById("threatFeedOutput");
   const refreshThreatFeed = document.getElementById("refreshThreatFeed");
+  const scanHistoryOutput = document.getElementById("scanHistoryOutput");
+  const threatAuditHistoryOutput = document.getElementById("threatAuditHistoryOutput");
+  const refreshScanHistory = document.getElementById("refreshScanHistory");
+  const refreshThreatAuditHistory = document.getElementById("refreshThreatAuditHistory");
 
   if (!form || !urlInput || !noteInput || !resultOutput) {
     return;
@@ -39,45 +43,109 @@
     return new Date().toISOString();
   }
 
-  function mockThreatFeedApi() {
-    // Simulate a local API call with static indicators.
-    const data = {
-      fetched_at_utc: nowIso(),
-      source: "mock-local-feed",
-      indicators: [
-        {
-          type: "ip",
-          value: "185.199.108.153",
-          severity: "high",
-          label: "Known C2 infrastructure",
-        },
-        {
-          type: "domain",
-          value: "update-check-secure.net",
-          severity: "medium",
-          label: "Suspicious updater domain",
-        },
-        {
-          type: "hash_sha256",
-          value: "8b8c740bb7f4f4f9187a5ee4b6fce1a3a6764b64f2fcae5abf2527be13d7f3e7",
-          severity: "high",
-          label: "Malware sample fingerprint",
-        },
-      ],
-    };
-
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(data), 300);
-    });
-  }
-
   async function loadThreatFeed() {
     if (!threatFeedOutput) {
       return;
     }
 
-    const data = await mockThreatFeedApi();
-    SecurityUtils.safeRender(threatFeedOutput, JSON.stringify(data, null, 2));
+    try {
+      const response = await fetch("/api/threat-feed", {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Threat feed request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      SecurityUtils.safeRender(threatFeedOutput, JSON.stringify(data, null, 2));
+    } catch (error) {
+      SecurityUtils.safeRender(
+        threatFeedOutput,
+        JSON.stringify(
+          {
+            fetched_at_utc: nowIso(),
+            error: "Unable to load threat feed from backend API.",
+            detail: String(error),
+          },
+          null,
+          2
+        )
+      );
+    }
+  }
+
+  async function loadScanHistory() {
+    if (!scanHistoryOutput) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/history/scans", {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Scan history request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      SecurityUtils.safeRender(scanHistoryOutput, JSON.stringify(data, null, 2));
+    } catch (error) {
+      SecurityUtils.safeRender(
+        scanHistoryOutput,
+        JSON.stringify(
+          {
+            fetched_at_utc: nowIso(),
+            error: "Unable to load scan history from backend API.",
+            detail: String(error),
+          },
+          null,
+          2
+        )
+      );
+    }
+  }
+
+  async function loadThreatAuditHistory() {
+    if (!threatAuditHistoryOutput) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/history/threat-feed", {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Threat audit history request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      SecurityUtils.safeRender(threatAuditHistoryOutput, JSON.stringify(data, null, 2));
+    } catch (error) {
+      SecurityUtils.safeRender(
+        threatAuditHistoryOutput,
+        JSON.stringify(
+          {
+            fetched_at_utc: nowIso(),
+            error: "Unable to load threat audit history from backend API.",
+            detail: String(error),
+          },
+          null,
+          2
+        )
+      );
+    }
   }
 
   form.addEventListener("submit", async (event) => {
@@ -135,5 +203,35 @@
       await loadThreatFeed();
     });
     void loadThreatFeed();
+  }
+
+  if (refreshScanHistory && scanHistoryOutput) {
+    refreshScanHistory.addEventListener("click", async () => {
+      const current = Date.now();
+      if (!enforceRateLimit(current)) {
+        SecurityUtils.safeRender(
+          scanHistoryOutput,
+          "Too many scan history refresh requests. Please wait and retry."
+        );
+        return;
+      }
+      await loadScanHistory();
+    });
+    void loadScanHistory();
+  }
+
+  if (refreshThreatAuditHistory && threatAuditHistoryOutput) {
+    refreshThreatAuditHistory.addEventListener("click", async () => {
+      const current = Date.now();
+      if (!enforceRateLimit(current)) {
+        SecurityUtils.safeRender(
+          threatAuditHistoryOutput,
+          "Too many audit history refresh requests. Please wait and retry."
+        );
+        return;
+      }
+      await loadThreatAuditHistory();
+    });
+    void loadThreatAuditHistory();
   }
 })(window);

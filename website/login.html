@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Secure Login Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">CYBER SHIELD LAB</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="scanner.html">Scanner</a>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="tag">Authentication Pattern</p>
+        <h1>Secure Client-Side Login Demo</h1>
+        <p>This page demonstrates strict validation, lockout-style throttling, and safe output rendering.</p>
+      </div>
+      <div class="status-card">
+        <h2>Validation Rules</h2>
+        <ul>
+          <li><span>Username</span><strong>3-32 chars, safe charset</strong></li>
+          <li><span>Password</span><strong>Length + complexity checks</strong></li>
+          <li><span>Attempts</span><strong>Rate limited</strong></li>
+          <li><span>Storage</span><strong>No plaintext persistence</strong></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="validator">
+      <h2>Login Form (Demo)</h2>
+      <form id="loginForm" novalidate>
+        <label for="usernameInput">Username</label>
+        <input id="usernameInput" type="text" maxlength="32" autocomplete="username" required placeholder="analyst_user" />
+
+        <label for="passwordInput">Password</label>
+        <input id="passwordInput" type="password" maxlength="72" autocomplete="current-password" required placeholder="StrongPassword123!" />
+
+        <button type="submit">Sign In</button>
+      </form>
+
+      <div class="result">
+        <h3>Auth Result</h3>
+        <pre id="loginOutput">Awaiting login input...</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Demo account for testing: username <strong>analyst_user</strong>, password <strong>CyberLab#2026</strong></p>
+  </footer>
+
+  <script src="security.js" defer></script>
+  <script src="login.js" defer></script>
+</body>
+</html>
