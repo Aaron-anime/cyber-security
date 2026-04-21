@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import ipaddress
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +13,9 @@ from urllib.parse import urlparse
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "security_lab.db"
+DB_PATH = Path(os.getenv("SECURITY_DB_PATH", "")) if os.getenv("SECURITY_DB_PATH") else (
+    Path("/tmp/security_lab.db") if os.getenv("VERCEL") else BASE_DIR / "security_lab.db"
+)
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
 
 ALLOWED_PROFILES = {"quick", "standard", "deep"}

@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "website/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/scanner",
+      "dest": "/website/scanner.html"
+    },
+    {
+      "src": "/login",
+      "dest": "/website/login.html"
+    },
+    {
+      "src": "/styles.css",
+      "dest": "/website/styles.css"
+    },
+    {
+      "src": "/(app|security|scanner|login).js",
+      "dest": "/website/$1.js"
+    },
+    {
+      "src": "/",
+      "dest": "/website/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/website/$1"
+    }
+  ]
+}
