@@ -17,6 +17,7 @@
   const threatAuditHistoryOutput = document.getElementById("threatAuditHistoryOutput");
   const refreshScanHistory = document.getElementById("refreshScanHistory");
   const refreshThreatAuditHistory = document.getElementById("refreshThreatAuditHistory");
+  const rayToggleBtn = document.getElementById("rayToggleBtn");
 
   if (!form || !urlInput || !noteInput || !resultOutput) {
     return;
@@ -41,6 +42,31 @@
 
   function nowIso() {
     return new Date().toISOString();
+  }
+
+  function setRayMode(enabled) {
+    document.body.classList.toggle("rays-off", !enabled);
+    if (rayToggleBtn) {
+      rayToggleBtn.textContent = enabled ? "Light Rays: ON" : "Light Rays: OFF";
+      rayToggleBtn.setAttribute("aria-pressed", String(!enabled));
+    }
+  }
+
+  function initRayToggle() {
+    if (!rayToggleBtn) {
+      return;
+    }
+
+    const saved = globalScope.localStorage.getItem("cyber_light_rays");
+    const initialEnabled = saved !== "off";
+    setRayMode(initialEnabled);
+
+    rayToggleBtn.addEventListener("click", () => {
+      const currentlyEnabled = !document.body.classList.contains("rays-off");
+      const nextEnabled = !currentlyEnabled;
+      setRayMode(nextEnabled);
+      globalScope.localStorage.setItem("cyber_light_rays", nextEnabled ? "on" : "off");
+    });
   }
 
   async function loadThreatFeed() {
@@ -234,4 +260,6 @@
     });
     void loadThreatAuditHistory();
   }
+
+  initRayToggle();
 })(window);

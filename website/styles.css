@@ -25,6 +25,48 @@ body {
     linear-gradient(160deg, var(--bg-b), #3b207c 60%, #1b1553);
 }
 
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Animated cyber light-ray layers for a more dynamic security dashboard look. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: -10% -10% auto -10%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::before {
+  height: 70vh;
+  background:
+    conic-gradient(from 120deg at 20% 20%, rgba(255, 138, 31, 0.23), transparent 22%),
+    conic-gradient(from 240deg at 80% 25%, rgba(90, 124, 255, 0.27), transparent 24%),
+    linear-gradient(100deg, rgba(174, 102, 255, 0.22), rgba(255, 138, 31, 0.18), transparent 60%);
+  filter: blur(26px);
+  animation: rayDrift 18s linear infinite alternate;
+}
+
+body::after {
+  top: auto;
+  bottom: -18vh;
+  height: 55vh;
+  background:
+    repeating-linear-gradient(
+      112deg,
+      rgba(255, 138, 31, 0.09) 0,
+      rgba(255, 138, 31, 0.09) 2px,
+      transparent 2px,
+      transparent 16px
+    ),
+    radial-gradient(circle at 30% 65%, rgba(102, 151, 255, 0.14), transparent 50%);
+  filter: blur(2px);
+  animation: scanSweep 10s ease-in-out infinite;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -52,6 +94,25 @@ body {
   color: var(--ink);
   text-decoration: none;
   font-weight: 600;
+}
+
+.ray-toggle {
+  margin-top: 0;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 31, 0.45);
+  color: #f8ecde;
+  background: linear-gradient(135deg, rgba(255, 138, 31, 0.35), rgba(124, 99, 255, 0.32));
+}
+
+.ray-toggle:hover {
+  box-shadow: 0 0 0 1px rgba(255, 138, 31, 0.5), 0 8px 20px var(--glow);
+}
+
+body.rays-off::before,
+body.rays-off::after {
+  display: none;
 }
 
 main {
@@ -282,6 +343,10 @@ footer {
     align-items: flex-start;
   }
 
+  .ray-toggle {
+    align-self: flex-start;
+  }
+
   .split {
     grid-template-columns: 1fr;
   }
@@ -328,5 +393,29 @@ footer {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes rayDrift {
+  from {
+    transform: translate3d(-2%, -1%, 0) rotate(-1deg);
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) rotate(1deg);
+  }
+}
+
+@keyframes scanSweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-3vh);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.6;
   }
 }
