@@ -1,5 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { submitScan, type ScanResponse } from "../api/client";
+import { useToast } from "../components/ToastProvider";
 
 const scanProfiles = ["quick", "standard", "deep"] as const;
 
@@ -35,6 +36,7 @@ function ScannerPage() {
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { addToast } = useToast();
 
   const parsedPorts = useMemo(() => parsePorts(ports), [ports]);
 
@@ -46,21 +48,36 @@ function ScannerPage() {
     const normalizedTarget = target.trim();
     if (!/^https?:\/\//i.test(normalizedTarget)) {
       setLoading(false);
-      setError("Invalid target URL. Use http:// or https:// only.");
+      const message = "Invalid target URL. Use http:// or https:// only.";
+      setError(message);
+      addToast({ title: "Invalid Target", message, tone: "warning" });
       return;
     }
 
     if (!parsedPorts) {
       setLoading(false);
-      setError("Invalid ports list. Use comma-separated numbers within 1-65535.");
+      const message = "Invalid ports list. Use comma-separated numbers within 1-65535.";
+      setError(message);
+      addToast({ title: "Invalid Ports", message, tone: "warning" });
       return;
     }
 
     try {
       const data = await submitScan(normalizedTarget, profile, parsedPorts);
       setResult(data);
+      addToast({
+        title: "Scan Complete",
+        message: `${data.finding_count} findings for ${data.target}`,
+        tone: "success"
+      });
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      addToast({
+        title: message.toLowerCase().includes("rate limit") ? "Rate Limit Exceeded" : "Scan Failed",
+        message,
+        tone: "error"
+      });
       setResult(null);
     } finally {
       setLoading(false);

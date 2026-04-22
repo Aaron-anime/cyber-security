@@ -11,28 +11,80 @@ type EntropyMetrics = {
   factors: string[];
 };
 
-function formatDuration(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return "instant";
+type AttackProfile = {
+  label: string;
+  rate: number;
+  description: string;
+};
+
+const ATTACK_PROFILES: AttackProfile[] = [
+  {
+    label: "Offline fast",
+    rate: 10_000_000_000,
+    description: "A modern GPU cluster against a fast hash"
+  },
+  {
+    label: "Offline slow",
+    rate: 10_000,
+    description: "A slower hash that forces more work per guess"
+  },
+  {
+    label: "Online throttled",
+    rate: 100,
+    description: "A login form protected by rate limiting"
+  }
+];
+
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
+const SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
+const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365.25;
+
+function formatDurationFromLog10Seconds(log10Seconds: number) {
+  if (!Number.isFinite(log10Seconds)) {
+    return "N/A";
   }
 
-  const units = [
-    { name: "year", value: 60 * 60 * 24 * 365 },
-    { name: "day", value: 60 * 60 * 24 },
-    { name: "hour", value: 60 * 60 },
-    { name: "minute", value: 60 },
-    { name: "second", value: 1 }
-  ];
-
-  for (const unit of units) {
-    if (seconds >= unit.value) {
-      const amount = seconds / unit.value;
-      const rounded = amount >= 10 ? Math.round(amount) : Math.round(amount * 10) / 10;
-      return `${rounded.toLocaleString()} ${unit.name}${rounded === 1 ? "" : "s"}`;
-    }
+  if (log10Seconds < -3) {
+    return "under 1 millisecond";
   }
 
-  return "instant";
+  if (log10Seconds < 0) {
+    return "under 1 second";
+  }
+
+  if (log10Seconds < Math.log10(SECONDS_PER_MINUTE)) {
+    const seconds = Math.pow(10, log10Seconds);
+    return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds).toLocaleString()} second${
+      seconds === 1 ? "" : "s"
+    }`;
+  }
+
+  if (log10Seconds < Math.log10(SECONDS_PER_HOUR)) {
+    const minutes = Math.pow(10, log10Seconds - Math.log10(SECONDS_PER_MINUTE));
+    return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes).toLocaleString()} minute${
+      minutes === 1 ? "" : "s"
+    }`;
+  }
+
+  if (log10Seconds < Math.log10(SECONDS_PER_DAY)) {
+    const hours = Math.pow(10, log10Seconds - Math.log10(SECONDS_PER_HOUR));
+    return `${hours < 10 ? hours.toFixed(1) : Math.round(hours).toLocaleString()} hour${hours === 1 ? "" : "s"}`;
+  }
+
+  if (log10Seconds < Math.log10(SECONDS_PER_YEAR)) {
+    const days = Math.pow(10, log10Seconds - Math.log10(SECONDS_PER_DAY));
+    return `${days < 10 ? days.toFixed(1) : Math.round(days).toLocaleString()} day${days === 1 ? "" : "s"}`;
+  }
+
+  if (log10Seconds < 15) {
+    const years = Math.pow(10, log10Seconds - Math.log10(SECONDS_PER_YEAR));
+    return `${years < 10 ? years.toFixed(1) : Math.round(years).toLocaleString()} year${years === 1 ? "" : "s"}`;
+  }
+
+  const exponent = Math.floor(log10Seconds);
+  const mantissa = Math.pow(10, log10Seconds - exponent);
+  return `~${mantissa.toFixed(2)}e${exponent} seconds`;
 }
 
 function estimatePasswordMetrics(password: string): EntropyMetrics {
@@ -63,10 +115,6 @@ function estimatePasswordMetrics(password: string): EntropyMetrics {
   charsetSize = Math.max(charsetSize, 10);
 
   const entropyBits = password.length * Math.log2(charsetSize);
-  const guesses = Math.pow(charsetSize, password.length);
-  const offlineFastSeconds = guesses / 1_000_000_000;
-  const offlineSlowSeconds = guesses / 10_000;
-  const onlineThrottledSeconds = guesses / 100;
 
   let score = 0;
   if (password.length >= 12) score += 1;
@@ -77,21 +125,27 @@ function estimatePasswordMetrics(password: string): EntropyMetrics {
   score = Math.min(score, 4);
 
   const labels = ["Very Weak", "Weak", "Fair", "Strong", "Excellent"];
+  const log10Guesses = entropyBits * Math.LOG10E * Math.log(2);
+  const attackTimes = ATTACK_PROFILES.map((profile) => {
+    const log10Seconds = log10Guesses - Math.log10(profile.rate);
+    return `${profile.label}: ${formatDurationFromLog10Seconds(log10Seconds)}`;
+  });
   const factors = [
     `Length: ${password.length} characters`,
     hasLower ? "Contains lowercase letters" : "Missing lowercase letters",
     hasUpper ? "Contains uppercase letters" : "Missing uppercase letters",
     hasNumber ? "Contains numbers" : "Missing numbers",
-    hasSymbol ? "Contains symbols" : "Missing symbols"
+    hasSymbol ? "Contains symbols" : "Missing symbols",
+    `Character set size: ${charsetSize}`
   ];
 
   return {
     score,
     entropyBits,
     charsetSize,
-    crackTimeOfflineFast: formatDuration(offlineFastSeconds),
-    crackTimeOfflineSlow: formatDuration(offlineSlowSeconds),
-    crackTimeOnlineThrottled: formatDuration(onlineThrottledSeconds),
+    crackTimeOfflineFast: attackTimes[0],
+    crackTimeOfflineSlow: attackTimes[1],
+    crackTimeOnlineThrottled: attackTimes[2],
     label: labels[score],
     factors
   };
@@ -101,6 +155,14 @@ function PasswordEntropyLab() {
   const [password, setPassword] = useState("");
 
   const metrics = useMemo(() => estimatePasswordMetrics(password), [password]);
+  const inputSummary = useMemo(
+    () => ({
+      length: password.length,
+      words: password.trim() ? password.trim().split(/\s+/).length : 0,
+      spaces: (password.match(/\s/g) || []).length
+    }),
+    [password]
+  );
 
   return (
     <section className="lab-module glass-panel panel-reveal">
@@ -143,6 +205,21 @@ function PasswordEntropyLab() {
             Strength: <strong>{metrics.label}</strong> ({metrics.score}/4)
           </p>
 
+          <div className="input-summary-grid" aria-label="Password summary">
+            <article className="input-summary-chip">
+              <span className="metric-label">Length</span>
+              <strong>{inputSummary.length}</strong>
+            </article>
+            <article className="input-summary-chip">
+              <span className="metric-label">Words</span>
+              <strong>{inputSummary.words}</strong>
+            </article>
+            <article className="input-summary-chip">
+              <span className="metric-label">Spaces</span>
+              <strong>{inputSummary.spaces}</strong>
+            </article>
+          </div>
+
           <div className="factor-list">
             <p className="metric-label">Why this score</p>
             <ul>
@@ -179,6 +256,15 @@ function PasswordEntropyLab() {
             <strong className="metric-value metric-value-small">{metrics.label}</strong>
           </article>
         </div>
+      </div>
+
+      <div className="attack-profile-strip" aria-label="Attack model assumptions">
+        {ATTACK_PROFILES.map((profile) => (
+          <article key={profile.label} className="attack-profile-chip">
+            <span className="metric-label">{profile.label}</span>
+            <strong>{profile.description}</strong>
+          </article>
+        ))}
       </div>
 
       <p className="module-note">

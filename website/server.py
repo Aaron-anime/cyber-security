@@ -685,6 +685,7 @@ def scan_target() -> Response:
 
 @app.post("/api/upload-report")
 @app.post("/api/ioc-reports/upload")
+@app.post("/api/ioc-reports/import")
 @limiter.limit("8 per minute")
 def upload_ioc_report() -> Response:
     source_name = "ioc_report.json"

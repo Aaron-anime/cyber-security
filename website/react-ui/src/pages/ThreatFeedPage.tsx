@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { fetchThreatFeed, type ThreatIndicator } from "../api/client";
+import SkeletonBlock from "../components/SkeletonBlock";
+import { useToast } from "../components/ToastProvider";
 
 function ThreatFeedPage() {
   const [source, setSource] = useState<string>("");
   const [indicators, setIndicators] = useState<ThreatIndicator[]>([]);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
+  const { addToast } = useToast();
 
   async function loadFeed() {
     setLoading(true);
@@ -15,7 +18,13 @@ function ThreatFeedPage() {
       setSource(feed.source);
       setIndicators(feed.indicators);
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      addToast({
+        title: "Threat Feed Error",
+        message,
+        tone: "error"
+      });
     } finally {
       setLoading(false);
     }
@@ -30,14 +39,16 @@ function ThreatFeedPage() {
       <header className="dashboard-header">
         <p className="eyebrow">Threat Intelligence</p>
         <h2>Live Threat Feed</h2>
-        <p className="muted-text">Current source: {source || "loading..."}</p>
+        <p className="muted-text">
+          Current source:{" "}
+          {loading ? <SkeletonBlock className="skeleton-inline" /> : source || "N/A"}
+        </p>
       </header>
 
       <button type="button" className="tool-action" onClick={() => void loadFeed()}>
         Refresh Feed
       </button>
 
-      {loading ? <p className="muted-text">Loading threat indicators...</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
       <div className="table-wrap panel-reveal">
@@ -51,14 +62,31 @@ function ThreatFeedPage() {
             </tr>
           </thead>
           <tbody>
-            {indicators.map((item) => (
-              <tr key={`${item.type}-${item.value}`}>
-                <td>{item.type}</td>
-                <td>{item.value}</td>
-                <td>{item.severity}</td>
-                <td>{item.label}</td>
-              </tr>
-            ))}
+            {loading
+              ? Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={`skeleton-${index}`}>
+                    <td>
+                      <SkeletonBlock className="skeleton-cell" />
+                    </td>
+                    <td>
+                      <SkeletonBlock className="skeleton-cell skeleton-cell-wide" />
+                    </td>
+                    <td>
+                      <SkeletonBlock className="skeleton-cell" />
+                    </td>
+                    <td>
+                      <SkeletonBlock className="skeleton-cell" />
+                    </td>
+                  </tr>
+                ))
+              : indicators.map((item) => (
+                  <tr key={`${item.type}-${item.value}`}>
+                    <td>{item.type}</td>
+                    <td>{item.value}</td>
+                    <td>{item.severity}</td>
+                    <td>{item.label}</td>
+                  </tr>
+                ))}
           </tbody>
         </table>
       </div>

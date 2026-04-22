@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import MainDashboard from "../components/MainDashboard";
 import { fetchLatestIocReport, fetchThreatFeed } from "../api/client";
 import { dashboardMetrics } from "../data/controlCenterContent";
+import SkeletonBlock from "../components/SkeletonBlock";
+import { useToast } from "../components/ToastProvider";
 
 type Snapshot = {
   threatIndicatorCount: number;
@@ -13,6 +15,7 @@ type Snapshot = {
 function DashboardPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string>("");
+  const { addToast } = useToast();
 
   useEffect(() => {
     let active = true;
@@ -36,7 +39,13 @@ function DashboardPage() {
         });
       } catch (err) {
         if (active) {
-          setError(String(err));
+          const message = String(err);
+          setError(message);
+          addToast({
+            title: "Snapshot Load Failed",
+            message,
+            tone: "error"
+          });
         }
       }
     }
@@ -61,19 +70,27 @@ function DashboardPage() {
           <div className="metric-grid">
             <article className="metric-card panel-reveal">
               <p className="metric-label">Threat Indicators</p>
-              <p className="metric-value">{snapshot?.threatIndicatorCount ?? "..."}</p>
+              <p className="metric-value">
+                {snapshot ? snapshot.threatIndicatorCount : <SkeletonBlock className="skeleton-inline" />}
+              </p>
             </article>
             <article className="metric-card panel-reveal">
               <p className="metric-label">Threat Source</p>
-              <p className="metric-value metric-value-small">{snapshot?.latestThreatSource ?? "..."}</p>
+              <p className="metric-value metric-value-small">
+                {snapshot ? snapshot.latestThreatSource : <SkeletonBlock className="skeleton-inline" />}
+              </p>
             </article>
             <article className="metric-card panel-reveal">
               <p className="metric-label">Latest IOC Processes</p>
-              <p className="metric-value">{snapshot?.latestIocProcessCount ?? "..."}</p>
+              <p className="metric-value">
+                {snapshot ? snapshot.latestIocProcessCount : <SkeletonBlock className="skeleton-inline" />}
+              </p>
             </article>
             <article className="metric-card panel-reveal">
               <p className="metric-label">Latest Flagged Connections</p>
-              <p className="metric-value">{snapshot?.latestIocFlaggedConnections ?? "..."}</p>
+              <p className="metric-value">
+                {snapshot ? snapshot.latestIocFlaggedConnections : <SkeletonBlock className="skeleton-inline" />}
+              </p>
             </article>
           </div>
         )}

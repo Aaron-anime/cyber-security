@@ -103,7 +103,7 @@ export async function uploadIocReport(file: File) {
   const formData = new FormData();
   formData.append("report", file);
 
-  const response = await fetch("/api/ioc-reports/upload", {
+  const response = await fetch("/api/ioc-reports/import", {
     method: "POST",
     body: formData
   });

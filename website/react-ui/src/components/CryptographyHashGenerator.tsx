@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MD5 from "crypto-js/md5";
 import SHA1 from "crypto-js/sha1";
 import SHA256 from "crypto-js/sha256";
@@ -25,9 +25,23 @@ function CryptographyHashGenerator() {
   const [copiedAlgorithm, setCopiedAlgorithm] = useState("");
 
   const normalized = value ?? "";
-  const md5 = normalized ? MD5(normalized).toString() : "Start typing to generate hashes...";
-  const sha1 = normalized ? SHA1(normalized).toString() : "Start typing to generate hashes...";
-  const sha256 = normalized ? SHA256(normalized).toString() : "Start typing to generate hashes...";
+  const hashes = useMemo(
+    () => ({
+      md5: normalized ? MD5(normalized).toString() : "Start typing to generate hashes...",
+      sha1: normalized ? SHA1(normalized).toString() : "Start typing to generate hashes...",
+      sha256: normalized ? SHA256(normalized).toString() : "Start typing to generate hashes..."
+    }),
+    [normalized]
+  );
+
+  const inputStats = useMemo(
+    () => ({
+      characters: value.length,
+      lines: value ? value.split(/\r?\n/).length : 0,
+      words: value.trim() ? value.trim().split(/\s+/).length : 0
+    }),
+    [value]
+  );
 
   useEffect(() => {
     if (!copiedAlgorithm) {
@@ -74,44 +88,60 @@ function CryptographyHashGenerator() {
           placeholder="Type text to hash"
           rows={4}
         />
+        <div className="input-summary-grid hash-summary-grid" aria-label="Input statistics">
+          <article className="input-summary-chip">
+            <span className="metric-label">Characters</span>
+            <strong>{inputStats.characters}</strong>
+          </article>
+          <article className="input-summary-chip">
+            <span className="metric-label">Words</span>
+            <strong>{inputStats.words}</strong>
+          </article>
+          <article className="input-summary-chip">
+            <span className="metric-label">Lines</span>
+            <strong>{inputStats.lines}</strong>
+          </article>
+        </div>
       </div>
 
       <div className="hash-grid">
         <HashRow
           algorithm="MD5"
-          hash={md5}
+          hash={hashes.md5}
           accentClass="hash-accent-md5"
           explanation="Fast and compact, but cryptographically broken for collision resistance."
         />
         <HashRow
           algorithm="SHA-1"
-          hash={sha1}
+          hash={hashes.sha1}
           accentClass="hash-accent-sha1"
           explanation="Older standard with known collision attacks. Useful for legacy recognition only."
         />
         <HashRow
           algorithm="SHA-256"
-          hash={sha256}
+          hash={hashes.sha256}
           accentClass="hash-accent-sha256"
           explanation="Modern choice for integrity checks and security-sensitive workflows."
         />
       </div>
 
       <div className="hash-actions">
-        <button type="button" className="tool-action" onClick={() => void copyHash(md5, "MD5")}>
+        <button type="button" className="tool-action" onClick={() => void copyHash(hashes.md5, "MD5")}>
           Copy MD5
         </button>
-        <button type="button" className="tool-action" onClick={() => void copyHash(sha1, "SHA-1")}>
+        <button type="button" className="tool-action" onClick={() => void copyHash(hashes.sha1, "SHA-1")}>
           Copy SHA-1
         </button>
         <button
           type="button"
           className="tool-action"
-          onClick={() => void copyHash(sha256, "SHA-256")}
+          onClick={() => void copyHash(hashes.sha256, "SHA-256")}
         >
           Copy SHA-256
         </button>
-        <span className="copy-status">{copiedAlgorithm ? `${copiedAlgorithm} copied.` : ""}</span>
+        <span className="copy-status" aria-live="polite">
+          {copiedAlgorithm ? `${copiedAlgorithm} copied.` : "Copy a hash to the clipboard."}
+        </span>
       </div>
 
       <p className="module-note">
