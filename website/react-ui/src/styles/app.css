@@ -208,6 +208,79 @@ body {
   background: linear-gradient(130deg, #ff9b2f, #f2cc73);
 }
 
+.utility-form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 1rem;
+}
+
+.inline-note {
+  color: var(--muted);
+  margin: 0.2rem 0 0;
+}
+
+.entropy-box {
+  margin-top: 0.25rem;
+  padding: 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 19, 58, 0.45);
+}
+
+.entropy-box h3 {
+  margin: 0 0 0.35rem;
+}
+
+.result {
+  padding: 1rem;
+}
+
+.result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d6fff5;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.history-grid-react {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.history-panel {
+  padding: 1rem;
+}
+
+.history-panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.history-panel h3 {
+  margin-top: 0;
+}
+
 .library-workbench {
   display: grid;
   gap: 1rem;
@@ -560,6 +633,11 @@ body {
   .lab-results-grid,
   .hash-grid,
   .library-launchpad {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-grid,
+  .history-grid-react {
     grid-template-columns: 1fr;
   }
 

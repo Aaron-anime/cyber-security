@@ -5,6 +5,8 @@ import DashboardPage from "./pages/DashboardPage";
 import ToolLibraryPage from "./pages/ToolLibraryPage";
 import ThreatFeedPage from "./pages/ThreatFeedPage";
 import IocReportsPage from "./pages/IocReportsPage";
+import ScannerPage from "./pages/ScannerPage";
+import LoginPage from "./pages/LoginPage";
 import HistoryPage from "./pages/HistoryPage";
 
 function App() {
@@ -18,6 +20,8 @@ function App() {
         <Route path="/tools" element={<ToolLibraryPage />} />
         <Route path="/threat-intelligence" element={<ThreatFeedPage />} />
         <Route path="/ioc-reports" element={<IocReportsPage />} />
+        <Route path="/scanner" element={<ScannerPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/history" element={<HistoryPage />} />
       </Routes>
     </ControlCenterLayout>

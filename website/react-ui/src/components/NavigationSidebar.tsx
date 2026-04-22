@@ -5,6 +5,8 @@ const links = [
   { label: "Tool Library", to: "/tools" },
   { label: "Threat Intelligence", to: "/threat-intelligence" },
   { label: "IOC Reports", to: "/ioc-reports" },
+  { label: "Scanner", to: "/scanner" },
+  { label: "Login", to: "/login" },
   { label: "History", to: "/history" }
 ];
 

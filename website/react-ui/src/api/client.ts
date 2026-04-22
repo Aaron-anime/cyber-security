@@ -19,6 +19,7 @@ export type LatestIocResponse = {
   source_name: string;
   process_tree: Array<Record<string, unknown>>;
   flagged_network_connections: Array<Record<string, unknown>>;
+  report: Record<string, unknown>;
   process_events: IocEventRecord[];
   network_events: IocEventRecord[];
   process_count: number;
@@ -38,6 +39,33 @@ export type HistoryResponse = {
   fetched_at_utc: string;
   count: number;
   items: Array<Record<string, unknown>>;
+};
+
+export type ScanFinding = {
+  id: string;
+  severity: string;
+  title: string;
+  recommendation: string;
+};
+
+export type ScanResponse = {
+  simulation: boolean;
+  scan_id: string;
+  timestamp_utc: string;
+  target: string;
+  target_type: string;
+  profile: string;
+  ports: number[];
+  findings: ScanFinding[];
+  finding_count: number;
+};
+
+export type LoginResponse = {
+  timestamp_utc: string;
+  status: string;
+  message?: string;
+  reason?: string;
+  session_fingerprint?: string;
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -100,4 +128,24 @@ export function fetchScanHistory() {
 
 export function fetchThreatFeedHistory() {
   return requestJson<HistoryResponse>("/api/history/threat-feed");
+}
+
+export function submitScan(target: string, profile: string, ports: number[]) {
+  return requestJson<ScanResponse>("/api/scan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ target, profile, ports })
+  });
+}
+
+export function submitLogin(username: string, password: string) {
+  return requestJson<LoginResponse>("/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ username, password })
+  });
 }
