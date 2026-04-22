@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import MainDashboard from "../components/MainDashboard";
 import { fetchLatestIocReport, fetchThreatFeed } from "../api/client";
+import { dashboardMetrics } from "../data/controlCenterContent";
 
 type Snapshot = {
   threatIndicatorCount: number;
@@ -48,7 +49,7 @@ function DashboardPage() {
 
   return (
     <>
-      <MainDashboard />
+      <MainDashboard metrics={dashboardMetrics} />
       <section className="panel-reveal main-dashboard">
         <header className="dashboard-header">
           <p className="eyebrow">Live Snapshot</p>

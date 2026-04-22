@@ -11,6 +11,9 @@
   const urlInput = document.getElementById("urlInput");
   const noteInput = document.getElementById("noteInput");
   const resultOutput = document.getElementById("resultOutput");
+  const dashboardSummaryGrid = document.getElementById("dashboardSummaryGrid");
+  const dashboardSummaryOutput = document.getElementById("dashboardSummaryOutput");
+  const refreshDashboardSummary = document.getElementById("refreshDashboardSummary");
   const threatFeedOutput = document.getElementById("threatFeedOutput");
   const refreshThreatFeed = document.getElementById("refreshThreatFeed");
   const scanHistoryOutput = document.getElementById("scanHistoryOutput");
@@ -144,6 +147,77 @@
     renderFlaggedNetworkRows(reportPayload?.flagged_network_connections || []);
   }
 
+  function renderSummaryCard(label, value, detail, tone = "default") {
+    const card = document.createElement("article");
+    card.className = `summary-card ${tone}`;
+
+    const heading = document.createElement("span");
+    heading.className = "summary-card-label";
+    heading.textContent = label;
+
+    const metric = document.createElement("strong");
+    metric.className = "summary-card-value";
+    metric.textContent = value;
+
+    const supporting = document.createElement("p");
+    supporting.className = "summary-card-detail";
+    supporting.textContent = detail;
+
+    card.appendChild(heading);
+    card.appendChild(metric);
+    card.appendChild(supporting);
+    return card;
+  }
+
+  function renderDashboardSummary(summaryPayload) {
+    if (dashboardSummaryGrid) {
+      dashboardSummaryGrid.textContent = "";
+
+      const counts = summaryPayload?.counts || {};
+      const latest = summaryPayload?.latest || {};
+      const latestScan = latest.scan || {};
+      const latestAudit = latest.threat_feed_audit || {};
+      const latestIoc = latest.ioc_report || {};
+
+      dashboardSummaryGrid.appendChild(
+        renderSummaryCard(
+          "Stored scans",
+          String(counts.scan_history ?? 0),
+          latestScan.scan_id ? `Latest scan: ${latestScan.scan_id}` : "No scan history yet.",
+          "accent"
+        )
+      );
+      dashboardSummaryGrid.appendChild(
+        renderSummaryCard(
+          "Threat audits",
+          String(counts.threat_feed_audits ?? 0),
+          latestAudit.source ? `Latest source: ${latestAudit.source}` : "No threat audits yet.",
+          "warning"
+        )
+      );
+      dashboardSummaryGrid.appendChild(
+        renderSummaryCard(
+          "IOC reports",
+          String(counts.ioc_reports ?? 0),
+          latestIoc.source_name ? `Latest report: ${latestIoc.source_name}` : "No IOC reports yet.",
+          "success"
+        )
+      );
+      dashboardSummaryGrid.appendChild(
+        renderSummaryCard(
+          "Freshness",
+          summaryPayload?.fetched_at_utc ? "Live" : "Unknown",
+          summaryPayload?.fetched_at_utc ? `Updated at ${summaryPayload.fetched_at_utc}` : "Snapshot not loaded.",
+          "neutral"
+        )
+      );
+    }
+
+    if (dashboardSummaryOutput) {
+      SecurityUtils.safeRender(dashboardSummaryOutput, JSON.stringify(summaryPayload, null, 2));
+    }
+  }
+
   function setRayMode(enabled) {
     document.body.classList.toggle("rays-off", !enabled);
     if (rayToggleBtn) {
@@ -271,6 +345,34 @@
           2
         )
       );
+    }
+  }
+
+  async function loadDashboardSummary() {
+    if (!dashboardSummaryOutput) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/dashboard/summary", {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Dashboard summary request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      renderDashboardSummary(data);
+    } catch (error) {
+      renderDashboardSummary({
+        fetched_at_utc: nowIso(),
+        error: "Unable to load operational snapshot from backend API.",
+        detail: String(error),
+      });
     }
   }
 
@@ -467,6 +569,21 @@
       await loadThreatAuditHistory();
     });
     void loadThreatAuditHistory();
+  }
+
+  if (refreshDashboardSummary && dashboardSummaryOutput) {
+    refreshDashboardSummary.addEventListener("click", async () => {
+      const current = Date.now();
+      if (!enforceRateLimit(current)) {
+        renderDashboardSummary({
+          fetched_at_utc: nowIso(),
+          error: "Too many snapshot refresh requests. Please wait and retry.",
+        });
+        return;
+      }
+      await loadDashboardSummary();
+    });
+    void loadDashboardSummary();
   }
 
   if (iocUploadForm && iocFileInput && iocUploadOutput) {

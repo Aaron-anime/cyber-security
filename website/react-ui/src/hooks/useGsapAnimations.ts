@@ -5,14 +5,22 @@ import { useGSAP } from "@gsap/react";
 gsap.registerPlugin(useGSAP);
 
 export function useGsapAnimations() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const lightRayARef = useRef<HTMLDivElement | null>(null);
+  const lightRayBRef = useRef<HTMLDivElement | null>(null);
 
   useGSAP(
     () => {
       const panels = gsap.utils.toArray<HTMLElement>(".panel-reveal");
+      const rayLayerA = lightRayARef.current;
+      const rayLayerB = lightRayBRef.current;
+
+      if (!rayLayerA || !rayLayerB) {
+        return;
+      }
 
       gsap.fromTo(
-        ".light-ray-layer-a",
+        rayLayerA,
         { xPercent: -3, opacity: 0.2 },
         {
           xPercent: 3,
@@ -25,7 +33,7 @@ export function useGsapAnimations() {
       );
 
       gsap.fromTo(
-        ".light-ray-layer-b",
+        rayLayerB,
         { yPercent: 0, opacity: 0.3 },
         {
           yPercent: -5,
@@ -50,8 +58,8 @@ export function useGsapAnimations() {
         }
       );
     },
-    { scope: containerRef }
+    { scope: rootRef }
   );
 
-  return { containerRef };
+  return { rootRef, lightRayARef, lightRayBRef };
 }

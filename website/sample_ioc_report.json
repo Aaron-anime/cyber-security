@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "analysis_start_utc": "2026-04-22T10:00:00Z",
+    "analysis_end_utc": "2026-04-22T10:05:30Z",
+    "analysis_duration_seconds": 330,
+    "sample_path": "C:\\samples\\payload.exe",
+    "sample_filename": "payload.exe"
+  },
+  "iocs": {
+    "process_events": [
+      {
+        "timestamp_utc": "2026-04-22T10:00:15Z",
+        "pid": 4120,
+        "ppid": 2440,
+        "process_name": "payload.exe",
+        "parent_name": "explorer.exe",
+        "cmdline": ["C:\\samples\\payload.exe", "--quiet"],
+        "status": "started"
+      },
+      {
+        "timestamp_utc": "2026-04-22T10:00:42Z",
+        "pid": 4120,
+        "ppid": 2440,
+        "process_name": "payload.exe",
+        "parent_name": "explorer.exe",
+        "cmdline": ["C:\\samples\\payload.exe", "--quiet"],
+        "status": "network_activity"
+      }
+    ],
+    "network_events": [
+      {
+        "timestamp_utc": "2026-04-22T10:00:44Z",
+        "pid": 4120,
+        "process_name": "payload.exe",
+        "local_ip": "10.0.2.15",
+        "local_port": 49820,
+        "remote_ip": "104.18.3.45",
+        "remote_port": 443,
+        "protocol": "tcp",
+        "status": "established",
+        "is_dns_related": false
+      },
+      {
+        "timestamp_utc": "2026-04-22T10:01:03Z",
+        "pid": 4120,
+        "process_name": "payload.exe",
+        "local_ip": "10.0.2.15",
+        "local_port": 49820,
+        "remote_ip": "8.8.8.8",
+        "remote_port": 53,
+        "protocol": "udp",
+        "status": "dns_query",
+        "is_dns_related": true
+      }
+    ]
+  },
+  "summary": {
+    "process_event_count": 2,
+    "network_event_count": 2,
+    "dns_event_count": 1
+  }
+}

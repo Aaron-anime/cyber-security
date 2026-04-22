@@ -15,6 +15,7 @@
     <div class="brand">CYBER SHIELD LAB</div>
     <nav>
       <a href="#dashboard">Dashboard</a>
+      <a href="#overview">Snapshot</a>
       <a href="#ioc-dashboard">IOC Dashboard</a>
       <a href="#playbook">Playbook</a>
       <a href="#hash-lab">Hash Lab</a>
@@ -45,6 +46,21 @@
           <li><span>Rate Limiting</span><strong>Enabled</strong></li>
           <li><span>Unsafe HTML Injection</span><strong>Blocked</strong></li>
         </ul>
+      </div>
+    </section>
+
+    <section class="validator dashboard-summary" id="overview">
+      <div class="section-header">
+        <div>
+          <h2>Operational Snapshot</h2>
+          <p>Aggregated data from scans, threat feed audits, and stored IOC reports.</p>
+        </div>
+        <button id="refreshDashboardSummary" type="button">Refresh Snapshot</button>
+      </div>
+      <div id="dashboardSummaryGrid" class="summary-grid" aria-live="polite"></div>
+      <div class="result">
+        <h3>Snapshot JSON</h3>
+        <pre id="dashboardSummaryOutput">Loading operational snapshot...</pre>
       </div>
     </section>
 

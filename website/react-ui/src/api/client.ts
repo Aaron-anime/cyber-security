@@ -5,6 +5,8 @@ export type ThreatIndicator = {
   label: string;
 };
 
+export type IocEventRecord = Record<string, unknown>;
+
 export type ThreatFeedResponse = {
   fetched_at_utc: string;
   source: string;
@@ -17,6 +19,8 @@ export type LatestIocResponse = {
   source_name: string;
   process_tree: Array<Record<string, unknown>>;
   flagged_network_connections: Array<Record<string, unknown>>;
+  process_events: IocEventRecord[];
+  network_events: IocEventRecord[];
   process_count: number;
   flagged_connection_count: number;
 };
@@ -71,7 +75,7 @@ export async function uploadIocReport(file: File) {
   const formData = new FormData();
   formData.append("report", file);
 
-  const response = await fetch("/api/upload-report", {
+  const response = await fetch("/api/ioc-reports/upload", {
     method: "POST",
     body: formData
   });

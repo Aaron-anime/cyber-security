@@ -206,6 +206,32 @@ def fetch_recent_threat_feed_audit(limit: int = 20) -> list[dict[str, Any]]:
     return audits
 
 
+def fetch_dashboard_summary() -> dict[str, Any]:
+    """Build a compact operational summary for the main dashboard."""
+    with sqlite3.connect(DB_PATH) as conn:
+        scan_count = conn.execute("SELECT COUNT(*) FROM scan_history").fetchone()[0] or 0
+        threat_audit_count = conn.execute("SELECT COUNT(*) FROM threat_feed_audit").fetchone()[0] or 0
+        ioc_report_count = conn.execute("SELECT COUNT(*) FROM ioc_reports").fetchone()[0] or 0
+
+    latest_scan = fetch_recent_scan_history(limit=1)
+    latest_threat_audit = fetch_recent_threat_feed_audit(limit=1)
+    latest_ioc_report = fetch_latest_ioc_report()
+
+    return {
+        "fetched_at_utc": utc_now_iso(),
+        "counts": {
+            "scan_history": int(scan_count),
+            "threat_feed_audits": int(threat_audit_count),
+            "ioc_reports": int(ioc_report_count),
+        },
+        "latest": {
+            "scan": latest_scan[0] if latest_scan else None,
+            "threat_feed_audit": latest_threat_audit[0] if latest_threat_audit else None,
+            "ioc_report": latest_ioc_report,
+        },
+    }
+
+
 def insert_ioc_report(entry: dict[str, Any]) -> int:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
@@ -257,13 +283,24 @@ def fetch_latest_ioc_report() -> dict[str, Any] | None:
     if row is None:
         return None
 
+    report_data = json.loads(row["report_json"])
+    report_iocs = report_data.get("iocs") if isinstance(report_data, dict) else {}
+    process_events = report_iocs.get("process_events") if isinstance(report_iocs, dict) else []
+    network_events = report_iocs.get("network_events") if isinstance(report_iocs, dict) else []
+
     return {
         "id": row["id"],
         "uploaded_at_utc": row["uploaded_at_utc"],
         "source_name": row["source_name"],
         "process_tree": json.loads(row["process_tree_json"]),
         "flagged_network_connections": json.loads(row["flagged_network_json"]),
-        "report": json.loads(row["report_json"]),
+        "report": report_data,
+        "process_events": [event for event in process_events if isinstance(event, dict)]
+        if isinstance(process_events, list)
+        else [],
+        "network_events": [event for event in network_events if isinstance(event, dict)]
+        if isinstance(network_events, list)
+        else [],
         "process_count": row["process_count"],
         "flagged_connection_count": row["flagged_connection_count"],
     }
@@ -592,6 +629,11 @@ def threat_feed_history() -> Response:
     )
 
 
+@app.get("/api/dashboard/summary")
+def dashboard_summary() -> Response:
+    return jsonify(fetch_dashboard_summary())
+
+
 @app.post("/api/scan")
 @limiter.limit("20 per minute")
 def scan_target() -> Response:
@@ -642,6 +684,7 @@ def scan_target() -> Response:
 
 
 @app.post("/api/upload-report")
+@app.post("/api/ioc-reports/upload")
 @limiter.limit("8 per minute")
 def upload_ioc_report() -> Response:
     source_name = "ioc_report.json"

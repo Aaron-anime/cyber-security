@@ -1,11 +1,10 @@
-const metrics = [
-  { label: "Live Threat Indicators", value: "128", trend: "+12%" },
-  { label: "Flagged Connections", value: "37", trend: "+4%" },
-  { label: "IOC Uploads (24h)", value: "19", trend: "+22%" },
-  { label: "Scan Requests Blocked", value: "54", trend: "+31%" }
-];
+import type { DashboardMetric } from "../data/controlCenterContent";
 
-function MainDashboard() {
+type MainDashboardProps = {
+  metrics: DashboardMetric[];
+};
+
+function MainDashboard({ metrics }: MainDashboardProps) {
   return (
     <section className="main-dashboard panel-reveal">
       <header className="dashboard-header">
