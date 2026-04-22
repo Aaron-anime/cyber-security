@@ -24,7 +24,7 @@ function ToolLibraryPage() {
           <a className="tool-action launcher-link" href="#hash-generator">
             Open Hash Generator
           </a>
-          <Link className="tool-action launcher-link" to="/log-analyzer">
+          <Link className="tool-action launcher-link launcher-link-compact" to="/log-analyzer">
             Open Event Log Analyzer
           </Link>
         </div>

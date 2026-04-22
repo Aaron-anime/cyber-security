@@ -490,6 +490,11 @@ body {
   margin-top: 0;
 }
 
+.launcher-link-compact {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
+}
+
 .glass-panel {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 18px;

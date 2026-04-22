@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import MainDashboard from "../components/MainDashboard";
 import { fetchLatestIocReport, fetchThreatFeed } from "../api/client";
 import { dashboardMetrics } from "../data/controlCenterContent";
@@ -59,6 +60,38 @@ function DashboardPage() {
   return (
     <>
       <MainDashboard metrics={dashboardMetrics} />
+
+      <section className="panel-reveal main-dashboard glass-panel">
+        <header className="dashboard-header">
+          <p className="eyebrow">Quick Access</p>
+          <h2>Event Log Analyzer</h2>
+          <p className="muted-text">
+            Jump straight into log triage and parse raw system events into severity-aware findings.
+          </p>
+        </header>
+
+        <div className="metric-grid">
+          <article className="metric-card panel-reveal">
+            <p className="metric-label">Module</p>
+            <p className="metric-value metric-value-small">Event Log Analyzer</p>
+          </article>
+          <article className="metric-card panel-reveal">
+            <p className="metric-label">Focus</p>
+            <p className="metric-value metric-value-small">Severity Triage</p>
+          </article>
+          <article className="metric-card panel-reveal">
+            <p className="metric-label">Workflow</p>
+            <p className="metric-value metric-value-small">Parse, Inspect, Escalate</p>
+          </article>
+          <article className="metric-card panel-reveal">
+            <p className="metric-label">Access</p>
+            <Link to="/log-analyzer" className="tool-action launcher-link">
+              Open Analyzer
+            </Link>
+          </article>
+        </div>
+      </section>
+
       <section className="panel-reveal main-dashboard">
         <header className="dashboard-header">
           <p className="eyebrow">Live Snapshot</p>
