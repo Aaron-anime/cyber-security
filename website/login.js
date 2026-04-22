@@ -10,6 +10,9 @@
   const usernameInput = document.getElementById("usernameInput");
   const passwordInput = document.getElementById("passwordInput");
   const loginOutput = document.getElementById("loginOutput");
+  const entropySummary = document.getElementById("entropySummary");
+  const entropyCrackTime = document.getElementById("entropyCrackTime");
+  const entropyMeterFill = document.getElementById("entropyMeterFill");
 
   if (!form || !usernameInput || !passwordInput || !loginOutput) {
     return;
@@ -19,9 +22,6 @@
   const RATE_WINDOW_MS = 60_000;
   const MAX_FAILED_ATTEMPTS = 5;
   const failedAttempts = [];
-
-  const EXPECTED_USERNAME = "analyst_user";
-  const EXPECTED_PASSWORD = "CyberLab#2026";
 
   function isStrongPassword(password) {
     if (password.length < 12) {
@@ -49,24 +49,74 @@
     return failedAttempts.length >= MAX_FAILED_ATTEMPTS;
   }
 
-  function timingSafeEqual(a, b) {
-    const left = String(a);
-    const right = String(b);
-    const max = Math.max(left.length, right.length);
-    let diff = left.length ^ right.length;
-
-    for (let i = 0; i < max; i += 1) {
-      const l = i < left.length ? left.charCodeAt(i) : 0;
-      const r = i < right.length ? right.charCodeAt(i) : 0;
-      diff |= l ^ r;
-    }
-
-    return diff === 0;
-  }
-
   function renderResult(payload) {
     SecurityUtils.safeRender(loginOutput, JSON.stringify(payload, null, 2));
   }
+
+  function updateEntropyLab(passwordValue) {
+    if (!entropySummary || !entropyCrackTime || !entropyMeterFill) {
+      return;
+    }
+
+    const emptyState = !passwordValue;
+    if (emptyState) {
+      entropySummary.textContent = "Start typing to see crack-time estimates.";
+      entropyCrackTime.textContent = "Estimated crack time: N/A";
+      entropyMeterFill.style.width = "0%";
+      entropyMeterFill.setAttribute("data-score", "0");
+      return;
+    }
+
+    const evaluator = globalScope.zxcvbn;
+    if (typeof evaluator !== "function") {
+      entropySummary.textContent = "Entropy tool failed to load.";
+      entropyCrackTime.textContent = "Estimated crack time: unavailable";
+      return;
+    }
+
+    const result = evaluator(passwordValue);
+    const score = Number(result.score) || 0;
+    const crackTime = result.crack_times_display?.offline_slow_hashing_1e4_per_second || "unknown";
+    const feedback = result.feedback?.warning || "Password strength analyzed.";
+
+    entropySummary.textContent = `Strength score ${score}/4. ${feedback}`;
+    entropyCrackTime.textContent = `Estimated crack time: ${crackTime}`;
+    entropyMeterFill.style.width = `${((score + 1) / 5) * 100}%`;
+    entropyMeterFill.setAttribute("data-score", String(score));
+  }
+
+  async function requestLogin(username, password) {
+    const response = await fetch("/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ username, password }),
+    });
+
+    let body = {};
+    try {
+      body = await response.json();
+    } catch (_err) {
+      body = { error: "Unable to parse server response." };
+    }
+
+    if (!response.ok) {
+      const message = body && typeof body === "object" ? body : { error: "Login failed." };
+      throw {
+        status: response.status,
+        ...message,
+      };
+    }
+
+    return body;
+  }
+
+  passwordInput.addEventListener("input", () => {
+    const password = SecurityUtils.sanitizeText(passwordInput.value, 72);
+    updateEntropyLab(password);
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -104,35 +154,28 @@
       return;
     }
 
-    const userOk = timingSafeEqual(username, EXPECTED_USERNAME);
-    const passOk = timingSafeEqual(password, EXPECTED_PASSWORD);
-    const success = userOk && passOk;
-
-    if (!success) {
+    try {
+      const response = await requestLogin(username, password);
+      renderResult({
+        ...response,
+        security_flags: {
+          safe_rendering: true,
+          username_validation: true,
+          lockout_policy: true,
+          server_rate_limited_login: true,
+        },
+      });
+      form.reset();
+      updateEntropyLab("");
+    } catch (error) {
       failedAttempts.push(now);
+      const statusCode = Number(error?.status) || 0;
       renderResult({
         timestamp_utc: new Date().toISOString(),
-        status: "rejected",
-        reason: "Invalid credentials.",
+        status: statusCode === 429 ? "blocked" : "rejected",
+        reason: String(error?.reason || error?.error || "Invalid credentials."),
+        server_status_code: statusCode || "unknown",
       });
-      return;
     }
-
-    const tokenSeed = `${username}:${new Date().toISOString()}`;
-    const sessionFingerprint = await SecurityUtils.sha256Hex(tokenSeed);
-
-    renderResult({
-      timestamp_utc: new Date().toISOString(),
-      status: "accepted",
-      message: "Login successful (demo mode).",
-      session_fingerprint: sessionFingerprint,
-      security_flags: {
-        safe_rendering: true,
-        username_validation: true,
-        lockout_policy: true,
-      },
-    });
-
-    form.reset();
   });
 })(window);

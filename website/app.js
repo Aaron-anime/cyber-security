@@ -18,6 +18,13 @@
   const refreshScanHistory = document.getElementById("refreshScanHistory");
   const refreshThreatAuditHistory = document.getElementById("refreshThreatAuditHistory");
   const rayToggleBtn = document.getElementById("rayToggleBtn");
+  const iocUploadForm = document.getElementById("iocUploadForm");
+  const iocFileInput = document.getElementById("iocFileInput");
+  const iocUploadOutput = document.getElementById("iocUploadOutput");
+  const processTreeOutput = document.getElementById("processTreeOutput");
+  const networkTableBody = document.getElementById("networkTableBody");
+  const hashInput = document.getElementById("hashInput");
+  const hashOutput = document.getElementById("hashOutput");
 
   if (!form || !urlInput || !noteInput || !resultOutput) {
     return;
@@ -42,6 +49,99 @@
 
   function nowIso() {
     return new Date().toISOString();
+  }
+
+  function escapeForText(value) {
+    return SecurityUtils.sanitizeText(String(value ?? ""), 500);
+  }
+
+  function renderProcessTreeNodes(parentElement, nodes, depth = 0) {
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      return;
+    }
+
+    const list = document.createElement("ul");
+    list.className = "process-tree-list";
+    list.setAttribute("data-depth", String(depth));
+
+    for (const node of nodes) {
+      const item = document.createElement("li");
+      item.className = "process-tree-item";
+
+      const title = document.createElement("div");
+      title.className = "process-tree-title";
+      const pid = Number(node.pid) || 0;
+      const ppid = Number(node.ppid) || 0;
+      title.textContent = `${escapeForText(node.name || "unknown")} (PID ${pid}, PPID ${ppid})`;
+      item.appendChild(title);
+
+      if (Array.isArray(node.cmdline) && node.cmdline.length) {
+        const cmdline = document.createElement("div");
+        cmdline.className = "process-tree-cmdline";
+        cmdline.textContent = escapeForText(node.cmdline.join(" "));
+        item.appendChild(cmdline);
+      }
+
+      renderProcessTreeNodes(item, node.children, depth + 1);
+      list.appendChild(item);
+    }
+
+    parentElement.appendChild(list);
+  }
+
+  function renderProcessTree(nodes) {
+    if (!processTreeOutput) {
+      return;
+    }
+
+    processTreeOutput.textContent = "";
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      processTreeOutput.textContent = "No process tree data found in report.";
+      return;
+    }
+
+    renderProcessTreeNodes(processTreeOutput, nodes);
+  }
+
+  function renderFlaggedNetworkRows(rows) {
+    if (!networkTableBody) {
+      return;
+    }
+
+    networkTableBody.textContent = "";
+    if (!Array.isArray(rows) || rows.length === 0) {
+      const emptyRow = document.createElement("tr");
+      const emptyCell = document.createElement("td");
+      emptyCell.colSpan = 6;
+      emptyCell.textContent = "No flagged connections found.";
+      emptyRow.appendChild(emptyCell);
+      networkTableBody.appendChild(emptyRow);
+      return;
+    }
+
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      const cells = [
+        escapeForText(row.timestamp_utc || ""),
+        `${escapeForText(row.process_name || "unknown")} (#${Number(row.pid) || 0})`,
+        `${escapeForText(row.remote_ip || "")} : ${Number(row.remote_port) || 0}`,
+        escapeForText(row.protocol || ""),
+        escapeForText(row.status || ""),
+        escapeForText(row.reason || ""),
+      ];
+
+      for (const value of cells) {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      }
+      networkTableBody.appendChild(tr);
+    }
+  }
+
+  function renderIocDashboard(reportPayload) {
+    renderProcessTree(reportPayload?.process_tree || []);
+    renderFlaggedNetworkRows(reportPayload?.flagged_network_connections || []);
   }
 
   function setRayMode(enabled) {
@@ -174,6 +274,114 @@
     }
   }
 
+  async function loadLatestIocReport() {
+    if (!iocUploadOutput) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/reports/latest", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (response.status === 404) {
+        SecurityUtils.safeRender(iocUploadOutput, "No IOC reports uploaded yet.");
+        renderIocDashboard({ process_tree: [], flagged_network_connections: [] });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Latest IOC request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      renderIocDashboard(data);
+      SecurityUtils.safeRender(
+        iocUploadOutput,
+        JSON.stringify(
+          {
+            status: "loaded",
+            report_id: data.id,
+            source_name: data.source_name,
+            uploaded_at_utc: data.uploaded_at_utc,
+            process_count: data.process_count,
+            flagged_connection_count: data.flagged_connection_count,
+          },
+          null,
+          2
+        )
+      );
+    } catch (error) {
+      SecurityUtils.safeRender(
+        iocUploadOutput,
+        JSON.stringify(
+          {
+            fetched_at_utc: nowIso(),
+            error: "Unable to load latest IOC report.",
+            detail: String(error),
+          },
+          null,
+          2
+        )
+      );
+    }
+  }
+
+  async function uploadIocReport(file) {
+    const formData = new FormData();
+    formData.append("report", file);
+
+    const response = await fetch("/api/upload-report", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`IOC upload failed (${response.status})`);
+    }
+
+    return response.json();
+  }
+
+  let hashTimer = null;
+  async function fetchHashes(inputValue) {
+    if (!hashOutput) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/hash", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ value: inputValue }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Hash request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      SecurityUtils.safeRender(hashOutput, JSON.stringify(data, null, 2));
+    } catch (error) {
+      SecurityUtils.safeRender(
+        hashOutput,
+        JSON.stringify(
+          {
+            timestamp_utc: nowIso(),
+            status: "error",
+            detail: String(error),
+          },
+          null,
+          2
+        )
+      );
+    }
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -259,6 +467,65 @@
       await loadThreatAuditHistory();
     });
     void loadThreatAuditHistory();
+  }
+
+  if (iocUploadForm && iocFileInput && iocUploadOutput) {
+    iocUploadForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const current = Date.now();
+      if (!enforceRateLimit(current)) {
+        SecurityUtils.safeRender(
+          iocUploadOutput,
+          "Too many IOC upload attempts. Please wait and retry."
+        );
+        return;
+      }
+
+      const file = iocFileInput.files && iocFileInput.files[0];
+      if (!file) {
+        SecurityUtils.safeRender(iocUploadOutput, "Select a JSON IOC report file before uploading.");
+        return;
+      }
+
+      try {
+        const result = await uploadIocReport(file);
+        renderIocDashboard(result);
+        SecurityUtils.safeRender(iocUploadOutput, JSON.stringify(result, null, 2));
+      } catch (error) {
+        SecurityUtils.safeRender(
+          iocUploadOutput,
+          JSON.stringify(
+            {
+              uploaded_at_utc: nowIso(),
+              status: "error",
+              message: "Unable to upload IOC report.",
+              detail: String(error),
+            },
+            null,
+            2
+          )
+        );
+      }
+    });
+
+    void loadLatestIocReport();
+  }
+
+  if (hashInput && hashOutput) {
+    hashInput.addEventListener("input", () => {
+      const clean = SecurityUtils.sanitizeText(hashInput.value, 1000);
+      if (!clean) {
+        SecurityUtils.safeRender(hashOutput, "Start typing to generate hashes...");
+        return;
+      }
+
+      if (hashTimer) {
+        globalScope.clearTimeout(hashTimer);
+      }
+      hashTimer = globalScope.setTimeout(() => {
+        void fetchHashes(clean);
+      }, 220);
+    });
   }
 
   initRayToggle();

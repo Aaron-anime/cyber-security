@@ -5,21 +5,33 @@ import hashlib
 import ipaddress
 import os
 import sqlite3
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from flask import Flask, Response, jsonify, request, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("SECURITY_DB_PATH", "")) if os.getenv("SECURITY_DB_PATH") else (
     Path("/tmp/security_lab.db") if os.getenv("VERCEL") else BASE_DIR / "security_lab.db"
 )
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri=os.getenv("RATE_LIMIT_STORAGE_URI", "memory://"),
+    default_limits=["240 per hour"],
+)
 
 ALLOWED_PROFILES = {"quick", "standard", "deep"}
 MAX_PORTS = 10
+OTX_API_KEY = os.getenv("OTX_API_KEY", "").strip()
+OTX_EXPORT_URL = "https://otx.alienvault.com/api/v1/indicators/export"
+FEODO_JSON_URL = "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.json"
 
 
 def init_db() -> None:
@@ -48,6 +60,20 @@ def init_db() -> None:
                 source TEXT NOT NULL,
                 indicator_count INTEGER NOT NULL,
                 indicators_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ioc_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uploaded_at_utc TEXT NOT NULL,
+                source_name TEXT NOT NULL,
+                process_tree_json TEXT NOT NULL,
+                flagged_network_json TEXT NOT NULL,
+                report_json TEXT NOT NULL,
+                process_count INTEGER NOT NULL,
+                flagged_connection_count INTEGER NOT NULL
             )
             """
         )
@@ -180,6 +206,69 @@ def fetch_recent_threat_feed_audit(limit: int = 20) -> list[dict[str, Any]]:
     return audits
 
 
+def insert_ioc_report(entry: dict[str, Any]) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO ioc_reports (
+                uploaded_at_utc,
+                source_name,
+                process_tree_json,
+                flagged_network_json,
+                report_json,
+                process_count,
+                flagged_connection_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry["uploaded_at_utc"],
+                entry["source_name"],
+                json.dumps(entry["process_tree"]),
+                json.dumps(entry["flagged_network_connections"]),
+                json.dumps(entry["report"]),
+                entry["process_count"],
+                entry["flagged_connection_count"],
+            ),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+
+
+def fetch_latest_ioc_report() -> dict[str, Any] | None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT
+                id,
+                uploaded_at_utc,
+                source_name,
+                process_tree_json,
+                flagged_network_json,
+                report_json,
+                process_count,
+                flagged_connection_count
+            FROM ioc_reports
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row["id"],
+        "uploaded_at_utc": row["uploaded_at_utc"],
+        "source_name": row["source_name"],
+        "process_tree": json.loads(row["process_tree_json"]),
+        "flagged_network_connections": json.loads(row["flagged_network_json"]),
+        "report": json.loads(row["report_json"]),
+        "process_count": row["process_count"],
+        "flagged_connection_count": row["flagged_connection_count"],
+    }
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -262,6 +351,181 @@ def build_scan_findings(profile: str, ports: list[int]) -> list[dict[str, str]]:
     return findings
 
 
+def timing_safe_equal(left: str, right: str) -> bool:
+    max_len = max(len(left), len(right))
+    diff = len(left) ^ len(right)
+    for i in range(max_len):
+        left_code = ord(left[i]) if i < len(left) else 0
+        right_code = ord(right[i]) if i < len(right) else 0
+        diff |= left_code ^ right_code
+    return diff == 0
+
+
+def to_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def build_process_tree(process_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    nodes: dict[int, dict[str, Any]] = {}
+    roots: list[dict[str, Any]] = []
+
+    for event in process_events:
+        pid = to_int(event.get("pid"), -1)
+        ppid = to_int(event.get("ppid"), -1)
+        if pid <= 0:
+            continue
+        nodes[pid] = {
+            "pid": pid,
+            "ppid": ppid,
+            "name": str(event.get("name") or "unknown"),
+            "cmdline": event.get("cmdline") if isinstance(event.get("cmdline"), list) else [],
+            "timestamp_utc": str(event.get("timestamp_utc") or ""),
+            "children": [],
+        }
+
+    for pid, node in nodes.items():
+        parent = nodes.get(node["ppid"])
+        if parent is None:
+            roots.append(node)
+        else:
+            parent["children"].append(node)
+
+    roots.sort(key=lambda item: (item["timestamp_utc"], item["pid"]))
+    return roots
+
+
+def extract_flagged_network_connections(network_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flagged: list[dict[str, Any]] = []
+    for event in network_events:
+        remote_ip = str(event.get("remote_ip") or "")
+        remote_port = to_int(event.get("remote_port"), 0)
+        is_dns_related = bool(event.get("is_dns_related"))
+
+        try:
+            parsed_ip = ipaddress.ip_address(remote_ip)
+            is_public = not (
+                parsed_ip.is_private
+                or parsed_ip.is_loopback
+                or parsed_ip.is_link_local
+                or parsed_ip.is_multicast
+                or parsed_ip.is_reserved
+                or parsed_ip.is_unspecified
+            )
+        except ValueError:
+            is_public = False
+
+        suspicious_port = remote_port in {21, 22, 23, 25, 4444, 5555, 8080, 1337}
+        if not (is_public or suspicious_port or is_dns_related):
+            continue
+
+        reason_parts: list[str] = []
+        if is_public:
+            reason_parts.append("public_ip")
+        if suspicious_port:
+            reason_parts.append("suspicious_port")
+        if is_dns_related:
+            reason_parts.append("dns_related")
+
+        flagged.append(
+            {
+                "timestamp_utc": str(event.get("timestamp_utc") or ""),
+                "pid": to_int(event.get("pid"), 0),
+                "process_name": str(event.get("process_name") or "unknown"),
+                "protocol": str(event.get("protocol") or ""),
+                "local_ip": str(event.get("local_ip") or ""),
+                "local_port": to_int(event.get("local_port"), 0),
+                "remote_ip": remote_ip,
+                "remote_port": remote_port,
+                "status": str(event.get("status") or ""),
+                "reason": ",".join(reason_parts),
+            }
+        )
+
+    return flagged
+
+
+def parse_ioc_report(report: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    iocs = report.get("iocs") if isinstance(report.get("iocs"), dict) else {}
+
+    process_events = iocs.get("process_events") if isinstance(iocs.get("process_events"), list) else []
+    network_events = iocs.get("network_events") if isinstance(iocs.get("network_events"), list) else []
+
+    safe_process_events = [event for event in process_events if isinstance(event, dict)]
+    safe_network_events = [event for event in network_events if isinstance(event, dict)]
+
+    process_tree = build_process_tree(safe_process_events)
+    flagged_connections = extract_flagged_network_connections(safe_network_events)
+    return process_tree, flagged_connections
+
+
+def fetch_otx_indicators() -> list[dict[str, str]]:
+    headers = {"Accept": "application/json", "User-Agent": "cyber-shield-lab/1.0"}
+    if OTX_API_KEY:
+        headers["X-OTX-API-KEY"] = OTX_API_KEY
+
+    response = requests.get(
+        OTX_EXPORT_URL,
+        params={"type": "IPv4", "limit": 20},
+        headers=headers,
+        timeout=8,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, list):
+        raise ValueError("Unexpected OTX response format")
+
+    indicators: list[dict[str, str]] = []
+    for item in data[:20]:
+        if not isinstance(item, dict):
+            continue
+        value = str(item.get("indicator") or item.get("ip") or "").strip()
+        if not value:
+            continue
+        indicators.append(
+            {
+                "type": "ip",
+                "value": value,
+                "severity": "high" if str(item.get("reputation", "")).startswith("-") else "medium",
+                "label": str(item.get("title") or "AlienVault OTX indicator"),
+            }
+        )
+    return indicators
+
+
+def fetch_feodo_indicators() -> list[dict[str, str]]:
+    response = requests.get(
+        FEODO_JSON_URL,
+        headers={"Accept": "application/json", "User-Agent": "cyber-shield-lab/1.0"},
+        timeout=8,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, list):
+        raise ValueError("Unexpected Feodo response format")
+
+    indicators: list[dict[str, str]] = []
+    for item in data[:20]:
+        if not isinstance(item, dict):
+            continue
+        ip = str(item.get("ip_address") or "").strip()
+        if not ip:
+            continue
+        malware = str(item.get("malware") or "unknown malware")
+        status = str(item.get("status") or "")
+        indicators.append(
+            {
+                "type": "ip",
+                "value": ip,
+                "severity": "high" if status.lower() == "online" else "medium",
+                "label": f"abuse.ch Feodo ({malware})",
+            }
+        )
+    return indicators
+
+
 @app.after_request
 def add_security_headers(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -288,29 +552,17 @@ def login_page() -> Response:
 
 @app.get("/api/threat-feed")
 def threat_feed() -> Response:
+    source = "alienvault-otx"
+    try:
+        indicators = fetch_otx_indicators()
+    except Exception:
+        source = "abusech-feodo"
+        indicators = fetch_feodo_indicators()
+
     feed = {
         "fetched_at_utc": utc_now_iso(),
-        "source": "server-mock-feed",
-        "indicators": [
-            {
-                "type": "ip",
-                "value": "185.199.108.153",
-                "severity": "high",
-                "label": "Known C2 infrastructure",
-            },
-            {
-                "type": "domain",
-                "value": "update-check-secure.net",
-                "severity": "medium",
-                "label": "Suspicious updater domain",
-            },
-            {
-                "type": "hash_sha256",
-                "value": "8b8c740bb7f4f4f9187a5ee4b6fce1a3a6764b64f2fcae5abf2527be13d7f3e7",
-                "severity": "high",
-                "label": "Malware sample fingerprint",
-            },
-        ],
+        "source": source,
+        "indicators": indicators,
     }
     insert_threat_feed_audit(feed)
     return jsonify(feed)
@@ -341,6 +593,7 @@ def threat_feed_history() -> Response:
 
 
 @app.post("/api/scan")
+@limiter.limit("20 per minute")
 def scan_target() -> Response:
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -386,6 +639,122 @@ def scan_target() -> Response:
     }
     insert_scan_history(result)
     return jsonify(result)
+
+
+@app.post("/api/upload-report")
+@limiter.limit("8 per minute")
+def upload_ioc_report() -> Response:
+    source_name = "ioc_report.json"
+    report_data: Any = None
+
+    uploaded_file = request.files.get("report")
+    if uploaded_file is not None:
+        source_name = uploaded_file.filename or source_name
+        try:
+            report_data = json.load(uploaded_file.stream)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Uploaded file is not valid JSON."}), 400
+    else:
+        payload = request.get_json(silent=True)
+        if isinstance(payload, dict) and isinstance(payload.get("report"), dict):
+            report_data = payload["report"]
+            source_name = str(payload.get("source_name") or source_name)
+        elif isinstance(payload, dict):
+            report_data = payload
+
+    if not isinstance(report_data, dict):
+        return jsonify({"error": "Provide IOC report JSON via multipart file or JSON body."}), 400
+
+    process_tree, flagged_connections = parse_ioc_report(report_data)
+    row_id = insert_ioc_report(
+        {
+            "uploaded_at_utc": utc_now_iso(),
+            "source_name": source_name,
+            "process_tree": process_tree,
+            "flagged_network_connections": flagged_connections,
+            "report": report_data,
+            "process_count": len(report_data.get("iocs", {}).get("process_events", []))
+            if isinstance(report_data.get("iocs"), dict)
+            else 0,
+            "flagged_connection_count": len(flagged_connections),
+        }
+    )
+
+    return jsonify(
+        {
+            "status": "stored",
+            "report_id": row_id,
+            "uploaded_at_utc": utc_now_iso(),
+            "source_name": source_name,
+            "process_tree": process_tree,
+            "flagged_network_connections": flagged_connections,
+        }
+    )
+
+
+@app.get("/api/reports/latest")
+def latest_ioc_report() -> Response:
+    report = fetch_latest_ioc_report()
+    if report is None:
+        return jsonify({"error": "No IOC reports uploaded yet."}), 404
+    return jsonify(report)
+
+
+@app.post("/login")
+@limiter.limit("10 per minute")
+def login_api() -> Response:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid JSON body."}), 400
+
+    username = str(payload.get("username") or "")[:32]
+    password = str(payload.get("password") or "")[:72]
+
+    expected_username = "analyst_user"
+    expected_password = "CyberLab#2026"
+
+    if not timing_safe_equal(username, expected_username) or not timing_safe_equal(password, expected_password):
+        return (
+            jsonify(
+                {
+                    "timestamp_utc": utc_now_iso(),
+                    "status": "rejected",
+                    "reason": "Invalid credentials.",
+                }
+            ),
+            401,
+        )
+
+    token_seed = f"{username}:{utc_now_iso()}".encode("utf-8")
+    session_fingerprint = hashlib.sha256(token_seed).hexdigest()
+    return jsonify(
+        {
+            "timestamp_utc": utc_now_iso(),
+            "status": "accepted",
+            "message": "Login successful (demo mode).",
+            "session_fingerprint": session_fingerprint,
+        }
+    )
+
+
+@app.post("/api/hash")
+@limiter.limit("60 per minute")
+def hash_text() -> Response:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid JSON body."}), 400
+
+    value = str(payload.get("value") or "")[:1000]
+    data = value.encode("utf-8")
+
+    return jsonify(
+        {
+            "input": value,
+            "md5": hashlib.md5(data).hexdigest(),
+            "sha1": hashlib.sha1(data).hexdigest(),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    )
 
 
 init_db()

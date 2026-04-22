@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+website/security_lab.db
+node_modules/
+dist/
+website/react-ui/node_modules/
+website/react-ui/dist/

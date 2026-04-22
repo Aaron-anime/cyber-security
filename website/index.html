@@ -15,7 +15,9 @@
     <div class="brand">CYBER SHIELD LAB</div>
     <nav>
       <a href="#dashboard">Dashboard</a>
+      <a href="#ioc-dashboard">IOC Dashboard</a>
       <a href="#playbook">Playbook</a>
+      <a href="#hash-lab">Hash Lab</a>
       <a href="#validator">Validator</a>
       <a href="#history">History</a>
       <a href="scanner.html">Scanner</a>
@@ -74,6 +76,49 @@
       </div>
     </section>
 
+    <section class="validator" id="ioc-dashboard">
+      <h2>Upload IOC Report</h2>
+      <p>Import ioc_report.json from your isolated VM to populate this dashboard.</p>
+      <form id="iocUploadForm" enctype="multipart/form-data" novalidate>
+        <label for="iocFileInput">IOC report JSON file</label>
+        <input id="iocFileInput" name="report" type="file" accept="application/json,.json" required />
+        <button type="submit">Upload IOC Report</button>
+      </form>
+      <div class="result">
+        <h3>Upload Result</h3>
+        <pre id="iocUploadOutput">Waiting for IOC report upload...</pre>
+      </div>
+
+      <div class="process-tree-wrap">
+        <div class="result">
+          <h3>Process Tree</h3>
+          <div id="processTreeOutput" class="tree-output">No IOC report uploaded yet.</div>
+        </div>
+        <div class="result">
+          <h3>Flagged Network Connections</h3>
+          <div class="table-wrap">
+            <table id="networkTable" class="data-table" aria-describedby="ioc-dashboard">
+              <thead>
+                <tr>
+                  <th>Time (UTC)</th>
+                  <th>Process</th>
+                  <th>Remote</th>
+                  <th>Protocol</th>
+                  <th>Status</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="networkTableBody">
+                <tr>
+                  <td colspan="6">No flagged connections loaded.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="validator" id="history">
       <h2>Persistent History Dashboard</h2>
       <p>Live records pulled from SQLite-backed API endpoints.</p>
@@ -110,6 +155,17 @@
       <div class="result">
         <h3>Result</h3>
         <pre id="resultOutput">Waiting for input...</pre>
+      </div>
+    </section>
+
+    <section class="validator" id="hash-lab">
+      <h2>Hash Generator Lab</h2>
+      <p>Type text to generate MD5, SHA1, and SHA256 values and observe one-way hashing behavior.</p>
+      <label for="hashInput">Input text</label>
+      <input id="hashInput" type="text" maxlength="1000" placeholder="Type text to hash" autocomplete="off" />
+      <div class="result">
+        <h3>Hash Output</h3>
+        <pre id="hashOutput">Start typing to generate hashes...</pre>
       </div>
     </section>
   </main>

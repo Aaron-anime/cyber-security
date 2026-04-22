@@ -1,0 +1,228 @@
+:root {
+  --bg-1: #08133a;
+  --bg-2: #172c7a;
+  --bg-3: #16224d;
+  --ink: #e8f0ff;
+  --muted: #b6c3f5;
+  --accent: #ff9b2f;
+  --line: rgba(255, 255, 255, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 10% 15%, #2b4bc7, var(--bg-1) 44%),
+    linear-gradient(130deg, var(--bg-2), var(--bg-3));
+}
+
+.control-center {
+  position: relative;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.light-ray-layer {
+  position: absolute;
+  inset: -12% -8%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.light-ray-layer-a {
+  background: conic-gradient(from 150deg at 20% 20%, rgba(255, 155, 47, 0.33), transparent 32%),
+    conic-gradient(from 220deg at 75% 18%, rgba(104, 141, 255, 0.28), transparent 32%);
+  filter: blur(28px);
+}
+
+.light-ray-layer-b {
+  background: repeating-linear-gradient(
+      116deg,
+      rgba(255, 155, 47, 0.1) 0,
+      rgba(255, 155, 47, 0.1) 2px,
+      transparent 2px,
+      transparent 18px
+    ),
+    radial-gradient(circle at 60% 70%, rgba(143, 173, 255, 0.2), transparent 50%);
+}
+
+.nav-sidebar,
+.main-dashboard,
+.tool-library,
+.metric-card,
+.tool-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(14, 26, 77, 0.9), rgba(17, 24, 55, 0.9));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+}
+
+.nav-sidebar {
+  margin: 1rem;
+  padding: 1rem;
+}
+
+.brand-kicker,
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  color: #ffd088;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.brand-block h1 {
+  margin: 0.4rem 0 0;
+  font-size: 1.4rem;
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.nav-link-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink);
+  padding: 0.65rem 0.7rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.nav-link-btn:hover {
+  border-color: rgba(255, 155, 47, 0.5);
+  background: rgba(255, 155, 47, 0.08);
+}
+
+.content-shell {
+  position: relative;
+  z-index: 1;
+  margin: 1rem 1rem 1rem 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.main-dashboard,
+.tool-library {
+  padding: 1rem;
+}
+
+.dashboard-header h2,
+.tool-library-header h3 {
+  margin: 0.35rem 0 0.5rem;
+}
+
+.muted-text {
+  margin: 0;
+  color: var(--muted);
+}
+
+.metric-grid {
+  margin-top: 0.95rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-card {
+  padding: 0.75rem;
+}
+
+.metric-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.metric-value {
+  margin: 0.4rem 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.metric-trend {
+  margin: 0;
+  color: #9ff0c5;
+}
+
+.tool-grid {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.tool-card {
+  padding: 0.8rem;
+}
+
+.tool-badge {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  color: #fff1da;
+  background: rgba(255, 155, 47, 0.24);
+  border: 1px solid rgba(255, 155, 47, 0.5);
+}
+
+.tool-card h4 {
+  margin: 0.6rem 0 0.4rem;
+}
+
+.tool-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.tool-action {
+  margin-top: 0.8rem;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  color: #10193f;
+  background: linear-gradient(130deg, #ff9b2f, #f2cc73);
+}
+
+@media (max-width: 980px) {
+  .control-center {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-sidebar {
+    margin: 1rem 1rem 0;
+  }
+
+  .content-shell {
+    margin: 0 1rem 1rem;
+  }
+
+  .metric-grid,
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+}

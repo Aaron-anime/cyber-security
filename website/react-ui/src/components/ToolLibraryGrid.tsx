@@ -1,0 +1,35 @@
+type ToolCard = {
+  title: string;
+  description: string;
+  badge: string;
+};
+
+type ToolLibraryGridProps = {
+  tools: ToolCard[];
+};
+
+function ToolLibraryGrid({ tools }: ToolLibraryGridProps) {
+  return (
+    <section className="tool-library panel-reveal">
+      <header className="tool-library-header">
+        <p className="eyebrow">Tool Library</p>
+        <h3>Componentized Security Modules</h3>
+      </header>
+
+      <div className="tool-grid">
+        {tools.map((tool) => (
+          <article key={tool.title} className="tool-card panel-reveal">
+            <span className="tool-badge">{tool.badge}</span>
+            <h4>{tool.title}</h4>
+            <p>{tool.description}</p>
+            <button type="button" className="tool-action">
+              Open Module
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default ToolLibraryGrid;

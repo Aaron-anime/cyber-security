@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
   <meta name="referrer" content="no-referrer" />
   <title>Secure Login Demo</title>
   <link rel="stylesheet" href="styles.css" />
@@ -45,6 +45,15 @@
         <label for="passwordInput">Password</label>
         <input id="passwordInput" type="password" maxlength="72" autocomplete="current-password" required placeholder="StrongPassword123!" />
 
+        <div class="entropy-box" aria-live="polite">
+          <h3>Password Entropy Lab</h3>
+          <p id="entropySummary" class="inline-note">Start typing to see crack-time estimates.</p>
+          <div class="entropy-meter" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0">
+            <div id="entropyMeterFill" class="entropy-meter-fill"></div>
+          </div>
+          <p id="entropyCrackTime" class="inline-note">Estimated crack time: N/A</p>
+        </div>
+
         <button type="submit">Sign In</button>
       </form>
 
@@ -60,6 +69,7 @@
   </footer>
 
   <script src="security.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/zxcvbn@4.4.2/dist/zxcvbn.js" defer></script>
   <script src="login.js" defer></script>
 </body>
 </html>
