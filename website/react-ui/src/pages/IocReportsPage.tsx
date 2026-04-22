@@ -1,9 +1,26 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
 import { fetchLatestIocReport, uploadIocReport, type LatestIocResponse } from "../api/client";
 import IocReportEventExplorer from "../components/IocReportEventExplorer";
 import ProcessTreeAccordion from "../components/ProcessTreeAccordion";
 import SkeletonBlock from "../components/SkeletonBlock";
 import { useToast } from "../components/ToastProvider";
+
+function isEditableElement(element: EventTarget | null) {
+  const target = element as HTMLElement | null;
+  if (!target) {
+    return false;
+  }
+
+  const tag = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select" ||
+    Boolean(target.closest("input, textarea, select, [contenteditable='true']"))
+  );
+}
 
 function IocReportsPage() {
   const [latest, setLatest] = useState<LatestIocResponse | null>(null);
@@ -12,8 +29,11 @@ function IocReportsPage() {
   const [uploading, setUploading] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [shortcutLegendOpen, setShortcutLegendOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
+  const legendCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const location = useLocation();
   const { addToast } = useToast();
 
   const processCount = latest?.process_events.length ?? latest?.process_count ?? 0;
@@ -45,7 +65,38 @@ function IocReportsPage() {
   }, []);
 
   useEffect(() => {
+    if (!shortcutLegendOpen) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      legendCloseButtonRef.current?.focus();
+    });
+  }, [shortcutLegendOpen]);
+
+  useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
+      if (location.pathname !== "/ioc-reports") {
+        return;
+      }
+
+      if (shortcutLegendOpen && event.key === "Escape") {
+        event.preventDefault();
+        setShortcutLegendOpen(false);
+        return;
+      }
+
+      const pressedQuestion = event.shiftKey && event.key === "?";
+      if (pressedQuestion) {
+        event.preventDefault();
+        setShortcutLegendOpen((current) => !current);
+        return;
+      }
+
+      if (isEditableElement(event.target)) {
+        return;
+      }
+
       const key = event.key.toLowerCase();
 
       if (event.ctrlKey && event.shiftKey && key === "u") {
@@ -73,7 +124,7 @@ function IocReportsPage() {
     return () => {
       window.removeEventListener("keydown", handleShortcut);
     };
-  }, []);
+  }, [location.pathname, shortcutLegendOpen]);
 
   async function uploadSelectedFile(file: File | null) {
     if (!file) {
@@ -171,7 +222,7 @@ function IocReportsPage() {
           tabIndex={0}
           aria-label="IOC report upload dropzone"
           aria-describedby="ioc-dropzone-help ioc-file-status"
-          aria-keyshortcuts="Control+Shift+U Alt+D Alt+X"
+          aria-keyshortcuts="Control+Shift+U Alt+D Alt+X Shift+?"
           onClick={() => fileInputRef.current?.click()}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
@@ -208,14 +259,69 @@ function IocReportsPage() {
             {selectedFile?.name ?? "No file selected"}
           </p>
           <p id="ioc-dropzone-help" className="dropzone-help muted-text">
-            Shortcuts: Ctrl+Shift+U open file picker, Alt+D focus dropzone, Alt+X clear selection.
+            Shortcuts: Ctrl+Shift+U open file picker, Alt+D focus dropzone, Alt+X clear selection, Shift+? toggle shortcut legend.
           </p>
         </div>
+
+        <button
+          type="button"
+          className="shortcut-help-trigger"
+          onClick={() => setShortcutLegendOpen(true)}
+        >
+          Show Shortcuts
+        </button>
 
         <button className="tool-action" type="submit" disabled={uploading}>
           {uploading ? "Uploading..." : "Upload IOC Report"}
         </button>
       </form>
+
+      {shortcutLegendOpen ? (
+        <div className="shortcut-modal-backdrop" role="presentation" onClick={() => setShortcutLegendOpen(false)}>
+          <section
+            className="shortcut-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcut-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="shortcut-modal-header">
+              <h3 id="shortcut-modal-title">IOC Keyboard Shortcuts</h3>
+              <button
+                ref={legendCloseButtonRef}
+                type="button"
+                className="shortcut-close"
+                onClick={() => setShortcutLegendOpen(false)}
+                aria-label="Close shortcut legend"
+              >
+                x
+              </button>
+            </header>
+            <ul className="shortcut-list">
+              <li>
+                <kbd>Ctrl+Shift+U</kbd>
+                <span>Open IOC file picker</span>
+              </li>
+              <li>
+                <kbd>Alt+D</kbd>
+                <span>Focus upload dropzone</span>
+              </li>
+              <li>
+                <kbd>Alt+X</kbd>
+                <span>Clear selected file</span>
+              </li>
+              <li>
+                <kbd>Shift+?</kbd>
+                <span>Toggle this shortcut legend</span>
+              </li>
+              <li>
+                <kbd>Escape</kbd>
+                <span>Close this modal</span>
+              </li>
+            </ul>
+          </section>
+        </div>
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
 
