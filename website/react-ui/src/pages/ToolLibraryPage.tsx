@@ -2,6 +2,7 @@ import ToolLibraryGrid from "../components/ToolLibraryGrid";
 import { toolCards } from "../data/controlCenterContent";
 import PasswordEntropyLab from "../components/PasswordEntropyLab";
 import CryptographyHashGenerator from "../components/CryptographyHashGenerator";
+import { Link } from "react-router-dom";
 
 function ToolLibraryPage() {
   return (
@@ -23,6 +24,9 @@ function ToolLibraryPage() {
           <a className="tool-action launcher-link" href="#hash-generator">
             Open Hash Generator
           </a>
+          <Link className="tool-action launcher-link" to="/log-analyzer">
+            Open Event Log Analyzer
+          </Link>
         </div>
       </section>
 

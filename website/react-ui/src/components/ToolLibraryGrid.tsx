@@ -1,7 +1,10 @@
+import { Link } from "react-router-dom";
+
 type ToolCard = {
   title: string;
   description: string;
   badge: string;
+  route?: string;
 };
 
 type ToolLibraryGridProps = {
@@ -22,9 +25,15 @@ function ToolLibraryGrid({ tools }: ToolLibraryGridProps) {
             <span className="tool-badge">{tool.badge}</span>
             <h4>{tool.title}</h4>
             <p>{tool.description}</p>
-            <button type="button" className="tool-action">
-              Open Module
-            </button>
+            {tool.route ? (
+              <Link to={tool.route} className="tool-action launcher-link">
+                Open Module
+              </Link>
+            ) : (
+              <button type="button" className="tool-action" aria-disabled="true">
+                Open Module
+              </button>
+            )}
           </article>
         ))}
       </div>

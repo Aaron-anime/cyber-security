@@ -1,0 +1,9 @@
+{
+  "name": "cyber-security-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix website/react-ui run dev",
+    "build": "npm --prefix website/react-ui run build",
+    "preview": "npm --prefix website/react-ui run preview"
+  }
+}

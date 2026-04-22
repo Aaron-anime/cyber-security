@@ -8,6 +8,7 @@ export type ToolCard = {
   title: string;
   description: string;
   badge: string;
+  route?: string;
 };
 
 export const dashboardMetrics: DashboardMetric[] = [
@@ -37,5 +38,11 @@ export const toolCards: ToolCard[] = [
     title: "Hash Generator",
     description: "Visualize MD5, SHA1, SHA256 one-way transformations.",
     badge: "Crypto"
+  },
+  {
+    title: "Event Log Analyzer",
+    description: "Parse raw system logs into severity-aware event rows for rapid SOC triage.",
+    badge: "Triage",
+    route: "/log-analyzer"
   }
 ];

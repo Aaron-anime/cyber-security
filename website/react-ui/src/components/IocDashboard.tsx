@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { fetchLatestIocReport, type IocEventRecord, type LatestIocResponse } from "../api/client";
-
-type ActiveTable = "process" | "network";
 
 type ColumnDefinition = {
   key: string;
@@ -10,25 +8,6 @@ type ColumnDefinition = {
 };
 
 type SortDirection = "asc" | "desc";
-
-const processColumns: ColumnDefinition[] = [
-  { key: "timestamp_utc", label: "Timestamp", accessors: ["timestamp_utc", "time", "created_at_utc"] },
-  { key: "pid", label: "PID", accessors: ["pid", "process_id"] },
-  { key: "ppid", label: "PPID", accessors: ["ppid", "parent_pid"] },
-  { key: "process_name", label: "Process", accessors: ["process_name", "name", "image"] },
-  { key: "cmdline", label: "Command Line", accessors: ["cmdline", "command_line", "command"] },
-  { key: "parent_name", label: "Parent", accessors: ["parent_name", "parent_process", "parent_image"] }
-];
-
-const networkColumns: ColumnDefinition[] = [
-  { key: "timestamp_utc", label: "Timestamp", accessors: ["timestamp_utc", "time", "created_at_utc"] },
-  { key: "pid", label: "PID", accessors: ["pid", "process_id"] },
-  { key: "process_name", label: "Process", accessors: ["process_name", "name", "image"] },
-  { key: "local_endpoint", label: "Local Endpoint", accessors: ["local_endpoint", "local_ip", "source"] },
-  { key: "remote_endpoint", label: "Remote Endpoint", accessors: ["remote_endpoint", "remote_ip", "destination"] },
-  { key: "protocol", label: "Protocol", accessors: ["protocol", "proto"] },
-  { key: "status", label: "Status", accessors: ["status", "state"] }
-];
 
 function readField(record: IocEventRecord, accessors: string[], fallback = "N/A") {
   for (const accessor of accessors) {
@@ -68,19 +47,225 @@ function compareValues(a: string, b: string, direction: SortDirection) {
   return direction === "asc" ? result : -result;
 }
 
+function formatEndpoint(record: IocEventRecord, ipKeys: string[], portKeys: string[]) {
+  const ip = readField(record, ipKeys, "N/A");
+  const port = readField(record, portKeys, "");
+  return port && port !== "N/A" ? `${ip}:${port}` : ip;
+}
+
+type EventTableProps = {
+  title: string;
+  accentClass: string;
+  description: string;
+  rows: IocEventRecord[];
+  columns: ColumnDefinition[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  sortKey: string;
+  sortDirection: SortDirection;
+  onSort: (key: string) => void;
+  currentPage: number;
+  rowsPerPage: number;
+  onRowsPerPageChange: (value: number) => void;
+  onPageChange: (value: number) => void;
+  renderCell?: (row: IocEventRecord, column: ColumnDefinition) => string;
+};
+
+function EventTable({
+  title,
+  accentClass,
+  description,
+  rows,
+  columns,
+  search,
+  onSearchChange,
+  sortKey,
+  sortDirection,
+  onSort,
+  currentPage,
+  rowsPerPage,
+  onRowsPerPageChange,
+  onPageChange,
+  renderCell
+}: EventTableProps) {
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+
+  const filteredRows = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return rows;
+    }
+    return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalizedSearch));
+  }, [rows, search]);
+
+  const sortedRows = useMemo(() => {
+    const activeColumn = columns.find((column) => column.key === sortKey) ?? columns[0];
+
+    return [...filteredRows].sort((left, right) => {
+      const leftValue = readField(left, activeColumn.accessors, "");
+      const rightValue = readField(right, activeColumn.accessors, "");
+      return compareValues(leftValue, rightValue, sortDirection);
+    });
+  }, [columns, filteredRows, sortDirection, sortKey]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / rowsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * rowsPerPage;
+  const pagedRows = sortedRows.slice(pageStart, pageStart + rowsPerPage);
+
+  useEffect(() => {
+    setExpandedRowKey(null);
+  }, [rows, search, sortKey, sortDirection, safePage, rowsPerPage]);
+
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur-lg p-5 space-y-4">
+      <div className="flex flex-col gap-2">
+        <h3 className={`text-lg font-semibold ${accentClass}`}>{title}</h3>
+        <p className="text-sm text-slate-400">{description}</p>
+      </div>
+
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search table rows..."
+          className="w-full xl:max-w-md rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+        />
+        <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+          Rows
+          <select
+            value={rowsPerPage}
+            onChange={(event) => onRowsPerPageChange(Number(event.target.value))}
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-100"
+          >
+            {[10, 20, 50].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="text-sm text-slate-400">
+        Showing {pagedRows.length} of {sortedRows.length} filtered events ({rows.length} total)
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-950/80 text-slate-300">
+            <tr>
+              <th className="w-10 px-2 py-3 text-center font-semibold" aria-label="Expand row" />
+              {columns.map((column) => {
+                const isSorted = sortKey === column.key;
+                return (
+                  <th key={column.key} className="px-3 py-3 text-left font-semibold whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onSort(column.key)}
+                      className="inline-flex items-center gap-2 hover:text-white"
+                    >
+                      <span>{column.label}</span>
+                      <span className="text-xs text-slate-500">
+                        {isSorted ? (sortDirection === "asc" ? "ASC" : "DESC") : ""}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+            {pagedRows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-400">
+                  No matching events found.
+                </td>
+              </tr>
+            ) : (
+              pagedRows.map((row, rowIndex) => {
+                const rowKey = `${title}-${pageStart + rowIndex}`;
+                const isExpanded = expandedRowKey === rowKey;
+
+                return (
+                  <Fragment key={rowKey}>
+                    <tr
+                      className="hover:bg-slate-800/40 cursor-pointer"
+                      onClick={() => {
+                        setExpandedRowKey((current) => (current === rowKey ? null : rowKey));
+                      }}
+                      aria-expanded={isExpanded}
+                    >
+                      <td className="px-2 py-3 text-center text-slate-400">
+                        <span aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
+                        <span className="sr-only">{isExpanded ? "Collapse row" : "Expand row"}</span>
+                      </td>
+                      {columns.map((column) => (
+                        <td key={`${rowKey}-${column.key}`} className="px-3 py-3 align-top text-slate-100 whitespace-nowrap">
+                          {renderCell ? renderCell(row, column) : readField(row, column.accessors)}
+                        </td>
+                      ))}
+                    </tr>
+                    {isExpanded ? (
+                      <tr className="bg-slate-950/65">
+                        <td colSpan={columns.length + 1} className="px-3 py-3">
+                          <p className="text-xs uppercase tracking-wide text-slate-400 mb-2">Raw Event JSON</p>
+                          <pre className="text-xs text-cyan-100 overflow-x-auto whitespace-pre-wrap break-words">
+                            {JSON.stringify(row, null, 2)}
+                          </pre>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          Page {safePage} of {totalPages}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => onPageChange(Math.max(1, safePage - 1))}
+            className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => onPageChange(Math.min(totalPages, safePage + 1))}
+            className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function IocDashboard() {
   const [report, setReport] = useState<LatestIocResponse | null>(null);
-  const [activeTable, setActiveTable] = useState<ActiveTable>("process");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortKey, setSortKey] = useState("timestamp_utc");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-
-  const columns = activeTable === "process" ? processColumns : networkColumns;
-  const allRows = activeTable === "process" ? report?.process_events ?? [] : report?.network_events ?? [];
+  const [processSearch, setProcessSearch] = useState("");
+  const [networkSearch, setNetworkSearch] = useState("");
+  const [processPage, setProcessPage] = useState(1);
+  const [networkPage, setNetworkPage] = useState(1);
+  const [processRowsPerPage, setProcessRowsPerPage] = useState(10);
+  const [networkRowsPerPage, setNetworkRowsPerPage] = useState(10);
+  const [processSortKey, setProcessSortKey] = useState("pid");
+  const [networkSortKey, setNetworkSortKey] = useState("remote_endpoint");
+  const [processSortDirection, setProcessSortDirection] = useState<SortDirection>("asc");
+  const [networkSortDirection, setNetworkSortDirection] = useState<SortDirection>("asc");
 
   async function loadLatest() {
     setLoading(true);
@@ -102,41 +287,31 @@ function IocDashboard() {
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTable, search, rowsPerPage, sortKey, sortDirection]);
+    setProcessPage(1);
+  }, [processSearch, processRowsPerPage, processSortDirection, processSortKey]);
 
-  const filteredRows = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  useEffect(() => {
+    setNetworkPage(1);
+  }, [networkSearch, networkRowsPerPage, networkSortDirection, networkSortKey]);
 
-    if (!normalizedSearch) {
-      return allRows;
-    }
-
-    return allRows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalizedSearch));
-  }, [allRows, search]);
-
-  const sortedRows = useMemo(() => {
-    const activeColumn = columns.find((column) => column.key === sortKey) ?? columns[0];
-
-    return [...filteredRows].sort((left, right) => {
-      const leftValue = readField(left, activeColumn.accessors, "");
-      const rightValue = readField(right, activeColumn.accessors, "");
-      return compareValues(leftValue, rightValue, sortDirection);
-    });
-  }, [columns, filteredRows, sortDirection, sortKey]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / rowsPerPage));
-  const pageStart = (currentPage - 1) * rowsPerPage;
-  const pagedRows = sortedRows.slice(pageStart, pageStart + rowsPerPage);
-
-  function onSort(columnKey: string) {
-    if (sortKey === columnKey) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+  function onProcessSort(columnKey: string) {
+    if (processSortKey === columnKey) {
+      setProcessSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
     }
 
-    setSortKey(columnKey);
-    setSortDirection("asc");
+    setProcessSortKey(columnKey);
+    setProcessSortDirection("asc");
+  }
+
+  function onNetworkSort(columnKey: string) {
+    if (networkSortKey === columnKey) {
+      setNetworkSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setNetworkSortKey(columnKey);
+    setNetworkSortDirection("asc");
   }
 
   return (
@@ -165,154 +340,91 @@ function IocDashboard() {
           </div>
         </header>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="inline-flex rounded-xl border border-slate-700 bg-slate-950 p-1" role="tablist" aria-label="IOC table switcher">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTable === "process"}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                  activeTable === "process" ? "bg-cyan-500/20 text-cyan-300" : "text-slate-300 hover:text-white"
-                }`}
-                onClick={() => setActiveTable("process")}
-              >
-                Process Events
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTable === "network"}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                  activeTable === "network" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-300 hover:text-white"
-                }`}
-                onClick={() => setActiveTable("network")}
-              >
-                Network Events
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by PID, process, command, IP, protocol..."
-                className="w-full sm:w-80 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
-              />
-              <button
-                type="button"
-                onClick={() => void loadLatest()}
-                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-400">
-            <p>
-              Showing {pagedRows.length} of {sortedRows.length} filtered events ({allRows.length} total)
-            </p>
-            <label className="inline-flex items-center gap-2">
-              Rows per page
-              <select
-                value={rowsPerPage}
-                onChange={(event) => setRowsPerPage(Number(event.target.value))}
-                className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-100"
-              >
-                {[10, 20, 50].map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {loading ? (
-            <div className="space-y-3" aria-live="polite">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div key={`ioc-skeleton-${index}`} className="h-10 rounded-lg bg-slate-800/70 animate-pulse" />
-              ))}
-            </div>
-          ) : null}
-
-          {!loading && error ? (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-rose-200">
-              Failed to load latest IOC report: {error}
-            </div>
-          ) : null}
-
-          {!loading && !error ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-950/80 text-slate-300">
-                  <tr>
-                    {columns.map((column) => {
-                      const isSorted = sortKey === column.key;
-                      return (
-                        <th key={column.key} className="px-3 py-3 text-left font-semibold whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => onSort(column.key)}
-                            className="inline-flex items-center gap-2 hover:text-white"
-                          >
-                            <span>{column.label}</span>
-                            <span className="text-xs text-slate-500">{isSorted ? (sortDirection === "asc" ? "ASC" : "DESC") : ""}</span>
-                          </button>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                  {pagedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-400">
-                        No matching events found.
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedRows.map((row, rowIndex) => (
-                      <tr key={`${activeTable}-${rowIndex}`} className="hover:bg-slate-800/40">
-                        {columns.map((column) => (
-                          <td key={`${column.key}-${rowIndex}`} className="px-3 py-3 align-top text-slate-100 whitespace-nowrap">
-                            {readField(row, column.accessors)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-400">
-              Page {currentPage} of {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((current) => Math.max(1, current - 1))}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((current) => Math.min(totalPages, current + 1))}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur-lg p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-300">Latest report loaded from backend SQLite store.</p>
+          <button
+            type="button"
+            onClick={() => void loadLatest()}
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+          >
+            Refresh Report
+          </button>
         </div>
+
+        {loading ? (
+          <div className="grid gap-5">
+            {["process", "network"].map((section) => (
+              <div key={section} className="rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur-lg p-5 space-y-3" aria-live="polite">
+                <div className="h-5 w-48 rounded bg-slate-800/70 animate-pulse" />
+                <div className="h-4 w-72 rounded bg-slate-800/60 animate-pulse" />
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={`${section}-skeleton-${index}`} className="h-10 rounded-lg bg-slate-800/70 animate-pulse" />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {!loading && error ? (
+          <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-rose-200">
+            Failed to load latest IOC report: {error}
+          </div>
+        ) : null}
+
+        {!loading && !error ? (
+          <div className="grid gap-5">
+            <EventTable
+              title="Process Events"
+              accentClass="text-cyan-300"
+              description="Interactive process telemetry with PID, parent process, and command-line arguments."
+              rows={report?.process_events ?? []}
+              columns={[
+                { key: "pid", label: "PID", accessors: ["pid", "process_id"] },
+                { key: "parent_name", label: "Parent Process", accessors: ["parent_name", "parent_process", "parent_image"] },
+                { key: "cmdline", label: "Command Line", accessors: ["cmdline", "command_line", "command"] }
+              ]}
+              search={processSearch}
+              onSearchChange={setProcessSearch}
+              sortKey={processSortKey}
+              sortDirection={processSortDirection}
+              onSort={onProcessSort}
+              currentPage={processPage}
+              rowsPerPage={processRowsPerPage}
+              onRowsPerPageChange={setProcessRowsPerPage}
+              onPageChange={setProcessPage}
+            />
+
+            <EventTable
+              title="Network Events"
+              accentClass="text-emerald-300"
+              description="Interactive network telemetry with protocol plus local and remote IP:port endpoints."
+              rows={report?.network_events ?? []}
+              columns={[
+                { key: "protocol", label: "Protocol", accessors: ["protocol", "proto"] },
+                { key: "local_endpoint", label: "Local IP:Port", accessors: ["local_endpoint", "local_ip"] },
+                { key: "remote_endpoint", label: "Remote IP:Port", accessors: ["remote_endpoint", "remote_ip"] }
+              ]}
+              search={networkSearch}
+              onSearchChange={setNetworkSearch}
+              sortKey={networkSortKey}
+              sortDirection={networkSortDirection}
+              onSort={onNetworkSort}
+              currentPage={networkPage}
+              rowsPerPage={networkRowsPerPage}
+              onRowsPerPageChange={setNetworkRowsPerPage}
+              onPageChange={setNetworkPage}
+              renderCell={(row, column) => {
+                if (column.key === "local_endpoint") {
+                  return formatEndpoint(row, ["local_ip", "source", "local_endpoint"], ["local_port"]);
+                }
+                if (column.key === "remote_endpoint") {
+                  return formatEndpoint(row, ["remote_ip", "destination", "remote_endpoint"], ["remote_port"]);
+                }
+                return readField(row, column.accessors);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     </section>
   );
