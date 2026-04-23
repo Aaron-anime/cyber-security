@@ -77,6 +77,34 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_log_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at_utc TEXT NOT NULL,
+                source TEXT NOT NULL,
+                raw_log_text TEXT NOT NULL,
+                parsed_events_json TEXT NOT NULL,
+                event_count INTEGER NOT NULL,
+                severity_counts_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dns_query_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at_utc TEXT NOT NULL,
+                source TEXT NOT NULL,
+                domain TEXT NOT NULL,
+                source_ip TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                resolved_ip TEXT NOT NULL,
+                sinkhole_ip TEXT NOT NULL,
+                metadata_json TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
 
 
@@ -304,6 +332,147 @@ def fetch_latest_ioc_report() -> dict[str, Any] | None:
         "process_count": row["process_count"],
         "flagged_connection_count": row["flagged_connection_count"],
     }
+
+
+def insert_event_log_analysis(entry: dict[str, Any]) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO event_log_analyses (
+                created_at_utc,
+                source,
+                raw_log_text,
+                parsed_events_json,
+                event_count,
+                severity_counts_json
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry["created_at_utc"],
+                entry["source"],
+                entry["raw_log_text"],
+                json.dumps(entry["parsed_events"]),
+                entry["event_count"],
+                json.dumps(entry["severity_counts"]),
+            ),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+
+
+def fetch_recent_event_log_analyses(limit: int = 20) -> list[dict[str, Any]]:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT
+                id,
+                created_at_utc,
+                source,
+                raw_log_text,
+                parsed_events_json,
+                event_count,
+                severity_counts_json
+            FROM event_log_analyses
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        items.append(
+            {
+                "id": row["id"],
+                "created_at_utc": row["created_at_utc"],
+                "source": row["source"],
+                "raw_log_text": row["raw_log_text"],
+                "parsed_events": json.loads(row["parsed_events_json"]),
+                "event_count": row["event_count"],
+                "severity_counts": json.loads(row["severity_counts_json"]),
+            }
+        )
+
+    return items
+
+
+def insert_dns_query_events(entries: list[dict[str, Any]]) -> int:
+    if not entries:
+        return 0
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.executemany(
+            """
+            INSERT INTO dns_query_events (
+                created_at_utc,
+                source,
+                domain,
+                source_ip,
+                outcome,
+                resolved_ip,
+                sinkhole_ip,
+                metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    entry["created_at_utc"],
+                    entry["source"],
+                    entry["domain"],
+                    entry["source_ip"],
+                    entry["outcome"],
+                    entry["resolved_ip"],
+                    entry["sinkhole_ip"],
+                    json.dumps(entry["metadata"]),
+                )
+                for entry in entries
+            ],
+        )
+        conn.commit()
+
+    return len(entries)
+
+
+def fetch_recent_dns_query_events(limit: int = 50) -> list[dict[str, Any]]:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT
+                id,
+                created_at_utc,
+                source,
+                domain,
+                source_ip,
+                outcome,
+                resolved_ip,
+                sinkhole_ip,
+                metadata_json
+            FROM dns_query_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        items.append(
+            {
+                "id": row["id"],
+                "created_at_utc": row["created_at_utc"],
+                "source": row["source"],
+                "domain": row["domain"],
+                "source_ip": row["source_ip"],
+                "outcome": row["outcome"],
+                "resolved_ip": row["resolved_ip"],
+                "sinkhole_ip": row["sinkhole_ip"],
+                "metadata": json.loads(row["metadata_json"]),
+            }
+        )
+
+    return items
 
 
 def utc_now_iso() -> str:
@@ -629,6 +798,30 @@ def threat_feed_history() -> Response:
     )
 
 
+@app.get("/api/history/event-logs")
+def event_log_history() -> Response:
+    items = fetch_recent_event_log_analyses(limit=20)
+    return jsonify(
+        {
+            "fetched_at_utc": utc_now_iso(),
+            "count": len(items),
+            "items": items,
+        }
+    )
+
+
+@app.get("/api/history/dns-simulator")
+def dns_simulator_history() -> Response:
+    items = fetch_recent_dns_query_events(limit=50)
+    return jsonify(
+        {
+            "fetched_at_utc": utc_now_iso(),
+            "count": len(items),
+            "items": items,
+        }
+    )
+
+
 @app.get("/api/dashboard/summary")
 def dashboard_summary() -> Response:
     return jsonify(fetch_dashboard_summary())
@@ -732,6 +925,105 @@ def upload_ioc_report() -> Response:
             "source_name": source_name,
             "process_tree": process_tree,
             "flagged_network_connections": flagged_connections,
+        }
+    )
+
+
+@app.post("/api/event-logs/analyze")
+@limiter.limit("20 per minute")
+def store_event_log_analysis() -> Response:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid JSON body."}), 400
+
+    raw_logs = str(payload.get("raw_logs") or "")[:300000]
+    source = str(payload.get("source") or "ui-event-log-analyzer")[:80]
+    parsed_events = payload.get("parsed_events")
+
+    if not isinstance(parsed_events, list):
+        return jsonify({"error": "parsed_events must be an array."}), 400
+
+    safe_events: list[dict[str, Any]] = [event for event in parsed_events if isinstance(event, dict)][:5000]
+    severity_counts = {"CRITICAL": 0, "ERROR": 0, "WARN": 0, "INFO": 0}
+
+    for event in safe_events:
+        severity = str(event.get("severity") or "").upper()
+        if severity in severity_counts:
+            severity_counts[severity] += 1
+
+    analysis_id = insert_event_log_analysis(
+        {
+            "created_at_utc": utc_now_iso(),
+            "source": source,
+            "raw_log_text": raw_logs,
+            "parsed_events": safe_events,
+            "event_count": len(safe_events),
+            "severity_counts": severity_counts,
+        }
+    )
+
+    return jsonify(
+        {
+            "status": "stored",
+            "analysis_id": analysis_id,
+            "created_at_utc": utc_now_iso(),
+            "event_count": len(safe_events),
+        }
+    )
+
+
+@app.post("/api/dns-simulator/events")
+@limiter.limit("30 per minute")
+def store_dns_simulator_events() -> Response:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Invalid JSON body."}), 400
+
+    events = payload.get("events")
+    source = str(payload.get("source") or "ui-private-dns-simulator")[:80]
+    sinkhole_ip = str(payload.get("sinkhole_ip") or "10.10.10.10")[:64]
+
+    if not isinstance(events, list) or not events:
+        return jsonify({"error": "events must be a non-empty array."}), 400
+
+    safe_events: list[dict[str, Any]] = []
+    for event in events[:1000]:
+        if not isinstance(event, dict):
+            continue
+
+        domain = str(event.get("domain") or "").strip().lower()
+        source_ip = str(event.get("sourceIp") or event.get("source_ip") or "").strip()
+        outcome = str(event.get("outcome") or "ALLOW").strip().upper()
+        resolved_ip = str(event.get("resolvedIp") or event.get("resolved_ip") or "").strip()
+        timestamp = str(event.get("timestamp") or utc_now_iso())
+
+        if not domain or not source_ip or not resolved_ip:
+            continue
+
+        safe_events.append(
+            {
+                "created_at_utc": timestamp,
+                "source": source,
+                "domain": domain,
+                "source_ip": source_ip,
+                "outcome": "SINKHOLED" if "SINK" in outcome else "ALLOW",
+                "resolved_ip": resolved_ip,
+                "sinkhole_ip": sinkhole_ip,
+                "metadata": {
+                    "ingested_at_utc": utc_now_iso(),
+                },
+            }
+        )
+
+    if not safe_events:
+        return jsonify({"error": "No valid events were provided."}), 400
+
+    stored_count = insert_dns_query_events(safe_events)
+    return jsonify(
+        {
+            "status": "stored",
+            "stored_count": stored_count,
+            "created_at_utc": utc_now_iso(),
         }
     )
 

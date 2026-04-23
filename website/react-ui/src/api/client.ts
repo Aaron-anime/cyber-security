@@ -68,6 +68,40 @@ export type LoginResponse = {
   session_fingerprint?: string;
 };
 
+export type EventLogRecord = {
+  id: number;
+  created_at_utc: string;
+  source: string;
+  raw_log_text: string;
+  parsed_events: Array<Record<string, unknown>>;
+  event_count: number;
+  severity_counts: Record<string, number>;
+};
+
+export type EventLogAnalysisResponse = {
+  status: string;
+  analysis_id: number;
+  created_at_utc: string;
+  event_count: number;
+};
+
+export type DnsQueryEventRecord = {
+  id: number;
+  created_at_utc: string;
+  domain: string;
+  source_ip: string;
+  outcome: string;
+  resolved_ip: string;
+  sinkhole_ip: string;
+  metadata: Record<string, unknown>;
+};
+
+export type DnsSimulatorStoreResponse = {
+  status: string;
+  stored_count: number;
+  created_at_utc: string;
+};
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
@@ -148,4 +182,36 @@ export function submitLogin(username: string, password: string) {
     },
     body: JSON.stringify({ username, password })
   });
+}
+
+export function submitEventLogAnalysis(rawLogs: string, parsedEvents: Array<Record<string, unknown>>, source = "ui-event-log-analyzer") {
+  return requestJson<EventLogAnalysisResponse>("/api/event-logs/analyze", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ raw_logs: rawLogs, parsed_events: parsedEvents, source })
+  });
+}
+
+export function fetchEventLogHistory() {
+  return requestJson<HistoryResponse>("/api/history/event-logs");
+}
+
+export function submitDnsSimulatorEvents(
+  events: Array<Record<string, unknown>>,
+  sinkholeIp: string,
+  source = "ui-private-dns-simulator"
+) {
+  return requestJson<DnsSimulatorStoreResponse>("/api/dns-simulator/events", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ events, sinkhole_ip: sinkholeIp, source })
+  });
+}
+
+export function fetchDnsSimulatorHistory() {
+  return requestJson<HistoryResponse>("/api/history/dns-simulator");
 }
