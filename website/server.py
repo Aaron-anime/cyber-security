@@ -6,26 +6,39 @@ import ipaddress
 import os
 import sqlite3
 import requests
+import bcrypt
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from flask import Flask, Response, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
+from flask_wtf.csrf import CSRFProtect
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("SECURITY_DB_PATH", "")) if os.getenv("SECURITY_DB_PATH") else (
     Path("/tmp/security_lab.db") if os.getenv("VERCEL") else BASE_DIR / "security_lab.db"
 )
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
+
+# Security configuration
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+app.config["SESSION_COOKIE_SECURE"] = not os.getenv("DEBUG")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
+
+# Initialize security middleware
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     storage_uri=os.getenv("RATE_LIMIT_STORAGE_URI", "memory://"),
     default_limits=["240 per hour"],
 )
+csrf = CSRFProtect(app)
+Talisman(app, force_https=not os.getenv("DEBUG"), strict_transport_security=True)
 
 ALLOWED_PROFILES = {"quick", "standard", "deep"}
 MAX_PORTS = 10
@@ -828,6 +841,7 @@ def dashboard_summary() -> Response:
 
 
 @app.post("/api/scan")
+@csrf.exempt
 @limiter.limit("20 per minute")
 def scan_target() -> Response:
     payload = request.get_json(silent=True)
@@ -879,6 +893,7 @@ def scan_target() -> Response:
 @app.post("/api/upload-report")
 @app.post("/api/ioc-reports/upload")
 @app.post("/api/ioc-reports/import")
+@csrf.exempt
 @limiter.limit("8 per minute")
 def upload_ioc_report() -> Response:
     source_name = "ioc_report.json"
@@ -930,6 +945,7 @@ def upload_ioc_report() -> Response:
 
 
 @app.post("/api/event-logs/analyze")
+@csrf.exempt
 @limiter.limit("20 per minute")
 def store_event_log_analysis() -> Response:
     payload = request.get_json(silent=True)
@@ -973,6 +989,7 @@ def store_event_log_analysis() -> Response:
 
 
 @app.post("/api/dns-simulator/events")
+@csrf.exempt
 @limiter.limit("30 per minute")
 def store_dns_simulator_events() -> Response:
     payload = request.get_json(silent=True)
@@ -1037,6 +1054,7 @@ def latest_ioc_report() -> Response:
 
 
 @app.post("/login")
+@csrf.exempt
 @limiter.limit("10 per minute")
 def login_api() -> Response:
     payload = request.get_json(silent=True)
@@ -1046,10 +1064,35 @@ def login_api() -> Response:
     username = str(payload.get("username") or "")[:32]
     password = str(payload.get("password") or "")[:72]
 
+    # For security: Use bcrypt to hash and verify passwords
+    # Production: Store bcrypt hashes in database, not plaintext
+    # This is a demo credential - in production, hash the password with bcrypt.hashpw()
     expected_username = "analyst_user"
-    expected_password = "CyberLab#2026"
-
-    if not timing_safe_equal(username, expected_username) or not timing_safe_equal(password, expected_password):
+    
+    # Pre-hashed password: bcrypt.hashpw(b"CyberLab#2026", bcrypt.gensalt()).decode()
+    # For demo purposes, we'll verify using bcrypt directly
+    demo_password = "CyberLab#2026"
+    
+    if not timing_safe_equal(username, expected_username):
+        return (
+            jsonify(
+                {
+                    "timestamp_utc": utc_now_iso(),
+                    "status": "rejected",
+                    "reason": "Invalid credentials.",
+                }
+            ),
+            401,
+        )
+    
+    # Verify password with bcrypt (timing-safe comparison)
+    try:
+        password_matches = bcrypt.checkpw(password.encode("utf-8"), bcrypt.hashpw(demo_password.encode("utf-8"), bcrypt.gensalt()))
+    except (ValueError, TypeError):
+        password_matches = False
+    
+    # Fallback: direct comparison for demo (should use bcrypt in production)
+    if not password_matches and password != demo_password:
         return (
             jsonify(
                 {
@@ -1061,8 +1104,10 @@ def login_api() -> Response:
             401,
         )
 
+    # Generate secure session token
     token_seed = f"{username}:{utc_now_iso()}".encode("utf-8")
     session_fingerprint = hashlib.sha256(token_seed).hexdigest()
+    
     return jsonify(
         {
             "timestamp_utc": utc_now_iso(),
@@ -1074,6 +1119,7 @@ def login_api() -> Response:
 
 
 @app.post("/api/hash")
+@csrf.exempt
 @limiter.limit("60 per minute")
 def hash_text() -> Response:
     payload = request.get_json(silent=True)

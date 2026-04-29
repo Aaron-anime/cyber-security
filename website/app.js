@@ -50,6 +50,55 @@
     return true;
   }
 
+  // ===== TOAST NOTIFICATION SYSTEM =====
+  function showToast(message, type = "info", duration = 4000) {
+    const container = document.getElementById("toastContainer");
+    if (!container) {
+      console.warn("Toast container not found");
+      return;
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      toast.classList.add("toast-exit");
+      setTimeout(() => {
+        container.removeChild(toast);
+      }, 300);
+    }, duration);
+
+    return toast;
+  }
+
+  function showSpinner(element) {
+    const spinner = document.createElement("div");
+    spinner.className = "spinner";
+    spinner.innerHTML = `
+      <div class="spinner-inner">
+        <div class="spinner-track"></div>
+        <div class="spinner-thumb"></div>
+      </div>
+      <p>Processing...</p>
+    `;
+    element.textContent = "";
+    element.appendChild(spinner);
+    return spinner;
+  }
+
+  function hideSpinner(element) {
+    const spinner = element.querySelector(".spinner");
+    if (spinner) {
+      element.removeChild(spinner);
+    }
+  }
+
   function nowIso() {
     return new Date().toISOString();
   }
@@ -388,7 +437,14 @@
       });
 
       if (response.status === 404) {
-        SecurityUtils.safeRender(iocUploadOutput, "No IOC reports uploaded yet.");
+        iocUploadOutput.textContent = "";
+        const emptyState = document.createElement("div");
+        emptyState.className = "empty-state";
+        emptyState.innerHTML = `
+          <p class="empty-icon">📋</p>
+          <p>No IOC reports uploaded yet. Upload a report to get started.</p>
+        `;
+        iocUploadOutput.appendChild(emptyState);
         renderIocDashboard({ process_tree: [], flagged_network_connections: [] });
         return;
       }
@@ -399,34 +455,30 @@
 
       const data = await response.json();
       renderIocDashboard(data);
-      SecurityUtils.safeRender(
-        iocUploadOutput,
-        JSON.stringify(
-          {
-            status: "loaded",
-            report_id: data.id,
-            source_name: data.source_name,
-            uploaded_at_utc: data.uploaded_at_utc,
-            process_count: data.process_count,
-            flagged_connection_count: data.flagged_connection_count,
-          },
-          null,
-          2
-        )
-      );
+      
+      const infoCard = document.createElement("div");
+      infoCard.className = "ioc-info-card";
+      infoCard.innerHTML = `
+        <h3>Latest IOC Report</h3>
+        <div class="ioc-info-grid">
+          <div><strong>Report ID:</strong> ${SecurityUtils.escapeHtml(data.id || "N/A")}</div>
+          <div><strong>Source:</strong> ${SecurityUtils.escapeHtml(data.source_name || "Unknown")}</div>
+          <div><strong>Uploaded:</strong> ${SecurityUtils.escapeHtml(data.uploaded_at_utc || "Unknown")}</div>
+          <div><strong>Processes:</strong> ${Number(data.process_count) || 0}</div>
+          <div><strong>Flagged Connections:</strong> ${Number(data.flagged_connection_count) || 0}</div>
+        </div>
+      `;
+      iocUploadOutput.textContent = "";
+      iocUploadOutput.appendChild(infoCard);
     } catch (error) {
-      SecurityUtils.safeRender(
-        iocUploadOutput,
-        JSON.stringify(
-          {
-            fetched_at_utc: nowIso(),
-            error: "Unable to load latest IOC report.",
-            detail: String(error),
-          },
-          null,
-          2
-        )
-      );
+      const errorCard = document.createElement("div");
+      errorCard.className = "error-card";
+      errorCard.innerHTML = `
+        <h3>Error Loading IOC Report</h3>
+        <p>${SecurityUtils.escapeHtml(String(error))}</p>
+      `;
+      iocUploadOutput.textContent = "";
+      iocUploadOutput.appendChild(errorCard);
     }
   }
 
@@ -447,6 +499,73 @@
   }
 
   let hashTimer = null;
+  
+  function renderHashResults(data) {
+    if (!hashOutput) {
+      return;
+    }
+
+    const hashTable = document.createElement("div");
+    hashTable.className = "hash-results";
+
+    if (data.error) {
+      hashTable.innerHTML = `
+        <div class="error-card">
+          <p>Error: ${SecurityUtils.escapeHtml(String(data.error))}</p>
+        </div>
+      `;
+      hashOutput.textContent = "";
+      hashOutput.appendChild(hashTable);
+      return;
+    }
+
+    const content = document.createElement("div");
+    content.className = "hash-grid";
+
+    const hashes = [
+      { name: "SHA-256", value: data.sha256 },
+      { name: "SHA-512", value: data.sha512 },
+      { name: "MD5", value: data.md5 },
+      { name: "BLAKE3", value: data.blake3 },
+    ];
+
+    for (const hash of hashes) {
+      if (hash.value) {
+        const card = document.createElement("div");
+        card.className = "hash-card";
+        card.innerHTML = `
+          <div class="hash-algorithm">${SecurityUtils.escapeHtml(hash.name)}</div>
+          <div class="hash-value" title="${SecurityUtils.escapeHtml(hash.value)}">
+            ${SecurityUtils.escapeHtml(hash.value)}
+          </div>
+          <button type="button" class="copy-btn" data-value="${SecurityUtils.escapeHtml(hash.value)}" aria-label="Copy ${hash.name}">
+            Copy
+          </button>
+        `;
+        content.appendChild(card);
+      }
+    }
+
+    hashTable.appendChild(content);
+    hashOutput.textContent = "";
+    hashOutput.appendChild(hashTable);
+
+    // Add copy functionality
+    const copyButtons = hashTable.querySelectorAll(".copy-btn");
+    for (const btn of copyButtons) {
+      btn.addEventListener("click", () => {
+        const value = btn.getAttribute("data-value");
+        navigator.clipboard.writeText(value).then(() => {
+          showToast("Hash copied to clipboard!", "success");
+          btn.textContent = "Copied!";
+          setTimeout(() => {
+            btn.textContent = "Copy";
+          }, 2000);
+        });
+      });
+    }
+  }
+
   async function fetchHashes(inputValue) {
     if (!hashOutput) {
       return;
@@ -467,20 +586,13 @@
       }
 
       const data = await response.json();
-      SecurityUtils.safeRender(hashOutput, JSON.stringify(data, null, 2));
+      renderHashResults(data);
     } catch (error) {
-      SecurityUtils.safeRender(
-        hashOutput,
-        JSON.stringify(
-          {
-            timestamp_utc: nowIso(),
-            status: "error",
-            detail: String(error),
-          },
-          null,
-          2
-        )
-      );
+      renderHashResults({
+        timestamp_utc: nowIso(),
+        status: "error",
+        error: String(error),
+      });
     }
   }
 
@@ -591,37 +703,59 @@
       event.preventDefault();
       const current = Date.now();
       if (!enforceRateLimit(current)) {
-        SecurityUtils.safeRender(
-          iocUploadOutput,
-          "Too many IOC upload attempts. Please wait and retry."
-        );
+        showToast("Too many upload attempts. Please wait and retry.", "error");
         return;
       }
 
       const file = iocFileInput.files && iocFileInput.files[0];
       if (!file) {
-        SecurityUtils.safeRender(iocUploadOutput, "Select a JSON IOC report file before uploading.");
+        showToast("Please select a JSON IOC report file before uploading.", "warning");
         return;
       }
 
+      // Show loading spinner
+      showSpinner(iocUploadOutput);
+
       try {
         const result = await uploadIocReport(file);
+        hideSpinner(iocUploadOutput);
+        
+        // Render the IOC dashboard data
         renderIocDashboard(result);
-        SecurityUtils.safeRender(iocUploadOutput, JSON.stringify(result, null, 2));
+        
+        // Display upload success info as a structured card
+        const successCard = document.createElement("div");
+        successCard.className = "upload-success-card";
+        successCard.innerHTML = `
+          <div class="success-icon">✓</div>
+          <h3>IOC Report Uploaded Successfully</h3>
+          <div class="success-details">
+            <p><strong>Report ID:</strong> ${SecurityUtils.escapeHtml(result.id || "N/A")}</p>
+            <p><strong>Source:</strong> ${SecurityUtils.escapeHtml(result.source_name || "Unknown")}</p>
+            <p><strong>Uploaded:</strong> ${SecurityUtils.escapeHtml(result.uploaded_at_utc || "Unknown")}</p>
+            <p><strong>Processes Found:</strong> ${Number(result.process_count) || 0}</p>
+            <p><strong>Flagged Connections:</strong> ${Number(result.flagged_connection_count) || 0}</p>
+          </div>
+        `;
+        iocUploadOutput.textContent = "";
+        iocUploadOutput.appendChild(successCard);
+        
+        showToast("IOC report uploaded successfully!", "success");
+        iocFileInput.value = ""; // Clear file input
       } catch (error) {
-        SecurityUtils.safeRender(
-          iocUploadOutput,
-          JSON.stringify(
-            {
-              uploaded_at_utc: nowIso(),
-              status: "error",
-              message: "Unable to upload IOC report.",
-              detail: String(error),
-            },
-            null,
-            2
-          )
-        );
+        hideSpinner(iocUploadOutput);
+        
+        const errorCard = document.createElement("div");
+        errorCard.className = "upload-error-card";
+        errorCard.innerHTML = `
+          <div class="error-icon">✕</div>
+          <h3>Upload Failed</h3>
+          <p>${SecurityUtils.escapeHtml(String(error))}</p>
+        `;
+        iocUploadOutput.textContent = "";
+        iocUploadOutput.appendChild(errorCard);
+        
+        showToast("Failed to upload IOC report. See details above.", "error");
       }
     });
 
@@ -632,7 +766,11 @@
     hashInput.addEventListener("input", () => {
       const clean = SecurityUtils.sanitizeText(hashInput.value, 1000);
       if (!clean) {
-        SecurityUtils.safeRender(hashOutput, "Start typing to generate hashes...");
+        const emptyState = document.createElement("div");
+        emptyState.className = "empty-state";
+        emptyState.innerHTML = `<p>Start typing to generate hashes...</p>`;
+        hashOutput.textContent = "";
+        hashOutput.appendChild(emptyState);
         return;
       }
 
