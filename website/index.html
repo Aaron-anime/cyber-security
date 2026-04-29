@@ -14,12 +14,12 @@
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
   
   <header class="topbar">
-    <div class="brand">CYBER SHIELD LAB</div>
+    <div class="brand">⚡ CYBER SHIELD</div>
     <nav>
       <a href="#dashboard">Dashboard</a>
       <a href="#overview">Snapshot</a>
-      <a href="#ioc-dashboard">IOC Dashboard</a>
-      <a href="#playbook">Playbook</a>
+      <a href="#ioc-dashboard">IOC</a>
+      <a href="#playbook">Tools</a>
       <a href="#hash-lab">Hash Lab</a>
       <a href="#validator">Validator</a>
       <a href="#history">History</a>
@@ -32,12 +32,10 @@
   <main>
     <section class="hero" id="dashboard">
       <div class="hero-text">
-        <p class="tag">Threat-Informed Defense</p>
-        <h1>Secure-by-Default Cyber Security Website</h1>
+        <p class="tag">🛡️ Threat-Informed Defense</p>
+        <h1>Secure-by-Default Cyber Security</h1>
         <p>
-          Every file in this site contains security-focused code: strict client-side
-          validation, safe DOM rendering, URL checks, CSP settings, and defensive
-          JavaScript helpers.
+          A modern security platform built with strict client-side validation, safe DOM rendering, URL checks, Content Security Policy, and defensive JavaScript patterns across every file.
         </p>
       </div>
       <div class="status-card" aria-live="polite">
@@ -46,7 +44,7 @@
           <li><span>CSP</span><strong>Enabled</strong></li>
           <li><span>Input Sanitization</span><strong>Enabled</strong></li>
           <li><span>Rate Limiting</span><strong>Enabled</strong></li>
-          <li><span>Unsafe HTML Injection</span><strong>Blocked</strong></li>
+          <li><span>HTML Injection</span><strong>Blocked</strong></li>
         </ul>
       </div>
     </section>
@@ -55,55 +53,55 @@
       <div class="section-header">
         <div>
           <h2>Operational Snapshot</h2>
-          <p>Aggregated data from scans, threat feed audits, and stored IOC reports.</p>
+          <p>Real-time aggregated data from scans, threat feeds, and IOC reports</p>
         </div>
-        <button id="refreshDashboardSummary" type="button">Refresh Snapshot</button>
+        <button id="refreshDashboardSummary" type="button">⟳ Refresh</button>
       </div>
       <div id="dashboardSummaryGrid" class="summary-grid" aria-live="polite"></div>
       <div class="result">
-        <h3>Snapshot JSON</h3>
+        <h3>Snapshot Data</h3>
         <pre id="dashboardSummaryOutput">Loading operational snapshot...</pre>
       </div>
     </section>
 
     <section class="panel-grid" id="playbook">
       <article class="panel">
-        <h3>Secure URL Validation</h3>
-        <p>Only allows HTTP/HTTPS schemes and blocks malformed URLs.</p>
+        <h3>🔗 URL Validation</h3>
+        <p>Strict HTTP/HTTPS scheme validation with malformed URL blocking.</p>
         <code>isSafeUrl(input)</code>
       </article>
       <article class="panel">
-        <h3>Escaped Rendering</h3>
-        <p>All dynamic output is rendered as text, not raw HTML.</p>
+        <h3>📝 Safe Rendering</h3>
+        <p>All dynamic content rendered as text, preventing raw HTML injection.</p>
         <code>safeRender(element, content)</code>
       </article>
       <article class="panel">
-        <h3>Hash Utility</h3>
-        <p>Uses SHA-256 via Web Crypto API for integrity checks.</p>
+        <h3>🔐 Hash Verification</h3>
+        <p>SHA-256 hashing via Web Crypto API for integrity checking.</p>
         <code>sha256Hex(value)</code>
       </article>
     </section>
 
     <section class="validator" id="threat-feed-panel">
-      <h2>Threat Feed Panel</h2>
-      <p>Server API data for recent cyber threat indicators.</p>
-      <button id="refreshThreatFeed" type="button">Refresh Feed</button>
+      <h2>📡 Threat Intelligence Feed</h2>
+      <p>Real-time cyber threat indicators from server API data</p>
+      <button id="refreshThreatFeed" type="button">⟳ Refresh Feed</button>
       <div class="result">
-        <h3>Latest Indicators</h3>
+        <h3>Latest Threat Indicators</h3>
         <pre id="threatFeedOutput">Loading threat feed...</pre>
       </div>
     </section>
 
     <section class="validator" id="ioc-dashboard">
-      <h2>Upload IOC Report</h2>
-      <p>Import ioc_report.json from your isolated VM to populate this dashboard.</p>
+      <h2>📊 IOC Report Dashboard</h2>
+      <p>Import IOC data from your isolated VM to analyze indicators of compromise</p>
       <form id="iocUploadForm" enctype="multipart/form-data" novalidate>
-        <label for="iocFileInput">IOC report JSON file</label>
+        <label for="iocFileInput">Upload IOC report (JSON)</label>
         <input id="iocFileInput" name="report" type="file" accept="application/json,.json" required />
-        <button type="submit">Upload IOC Report</button>
+        <button type="submit">Upload Report</button>
       </form>
       <div class="result">
-        <h3>Upload Result</h3>
+        <h3>Upload Status</h3>
         <pre id="iocUploadOutput">Waiting for IOC report upload...</pre>
       </div>
 
@@ -138,11 +136,11 @@
     </section>
 
     <section class="validator" id="history">
-      <h2>Persistent History Dashboard</h2>
-      <p>Live records pulled from SQLite-backed API endpoints.</p>
+      <h2>📋 Persistent History Dashboard</h2>
+      <p>Live records pulled from SQLite-backed API endpoints</p>
       <div class="history-actions">
-        <button id="refreshScanHistory" type="button">Refresh Scan History</button>
-        <button id="refreshThreatAuditHistory" type="button">Refresh Threat Audit History</button>
+        <button id="refreshScanHistory" type="button">⟳ Refresh Scans</button>
+        <button id="refreshThreatAuditHistory" type="button">⟳ Refresh Audits</button>
       </div>
       <div class="history-grid">
         <div class="result">
@@ -157,30 +155,30 @@
     </section>
 
     <section class="validator" id="validator">
-      <h2>Security Validator</h2>
-      <p>Test a URL and generate a checksum for your note in a safe way.</p>
+      <h2>🔍 Security Validator</h2>
+      <p>Validate URLs and generate checksums for secure notes</p>
 
       <form id="securityForm" novalidate>
         <label for="urlInput">URL to validate</label>
         <input id="urlInput" name="urlInput" type="url" autocomplete="off" placeholder="https://example.com" required maxlength="200" />
 
-        <label for="noteInput">Security note (max 300 chars)</label>
-        <textarea id="noteInput" name="noteInput" rows="4" maxlength="300" placeholder="Write a short secure note."></textarea>
+        <label for="noteInput">Security note (max 300 characters)</label>
+        <textarea id="noteInput" name="noteInput" rows="4" maxlength="300" placeholder="Write a short security note..."></textarea>
 
-        <button type="submit">Run Security Check</button>
+        <button type="submit">Run Validation</button>
       </form>
 
       <div class="result">
-        <h3>Result</h3>
+        <h3>Validation Result</h3>
         <pre id="resultOutput">Waiting for input...</pre>
       </div>
     </section>
 
     <section class="validator" id="hash-lab">
-      <h2>Hash Generator Lab</h2>
-      <p>Type text to generate MD5, SHA1, and SHA256 values and observe one-way hashing behavior.</p>
+      <h2>⚙️ Hash Generator Lab</h2>
+      <p>Generate MD5, SHA1, and SHA256 hashes and observe one-way hashing behavior</p>
       <label for="hashInput">Input text</label>
-      <input id="hashInput" type="text" maxlength="1000" placeholder="Type text to hash" autocomplete="off" />
+      <input id="hashInput" type="text" maxlength="1000" placeholder="Type text to hash..." autocomplete="off" />
       <div class="result">
         <h3>Hash Output</h3>
         <pre id="hashOutput">Start typing to generate hashes...</pre>
@@ -189,8 +187,8 @@
   </main>
 
   <footer>
-    <p>Built for cyber security practice with secure coding patterns in every file.</p>
-    <p class="quick-links"><a href="scanner.html">Open Vulnerability Scanner</a> | <a href="login.html">Open Secure Login</a></p>
+    <p>🔐 Secure-by-default cyber security platform with defensive coding patterns</p>
+    <p class="quick-links"><a href="scanner.html">🔎 Vulnerability Scanner</a> | <a href="login.html">🔑 Secure Login</a></p>
   </footer>
 
   <script src="security.js" defer></script>
