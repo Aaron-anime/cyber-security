@@ -9,16 +9,18 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#maincontent">Skip to content</a>
   <header class="topbar">
     <div class="brand">CYBER SHIELD LAB</div>
-    <nav>
+    <button id="navToggleBtn" class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Open navigation">☰</button>
+    <nav id="primary-nav" class="primary-nav" role="navigation">
       <a href="index.html">Home</a>
       <a href="scanner.html">Scanner</a>
       <a href="login.html">Login</a>
     </nav>
   </header>
 
-  <main>
+  <main role="main" id="maincontent">
     <section class="hero">
       <div class="hero-text">
         <p class="tag">Authentication Pattern</p>
@@ -59,13 +61,13 @@
 
       <div class="result">
         <h3>Auth Result</h3>
-        <pre id="loginOutput">Awaiting login input...</pre>
+        <pre id="loginOutput" aria-live="polite">Awaiting login input...</pre>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>Demo account for testing: username <strong>analyst_user</strong>, password <strong>CyberLab#2026</strong></p>
+    <p>Demo accounts and plaintext credentials removed for security. Use a test account provisioned by your administrator.</p>
   </footer>
 
   <script src="security.js" defer></script>

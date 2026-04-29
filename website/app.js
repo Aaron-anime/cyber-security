@@ -29,9 +29,7 @@
   const hashInput = document.getElementById("hashInput");
   const hashOutput = document.getElementById("hashOutput");
 
-  if (!form || !urlInput || !noteInput || !resultOutput) {
-    return;
-  }
+  // Don't bail out if page-specific elements are missing — initialize feature-by-feature.
 
   const RATE_WINDOW_MS = 3000;
   const MAX_ATTEMPTS_IN_WINDOW = 5;
@@ -596,47 +594,49 @@
     }
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  if (form && urlInput && noteInput && resultOutput) {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
 
-    const current = Date.now();
-    if (!enforceRateLimit(current)) {
-      SecurityUtils.safeRender(
-        resultOutput,
-        "Too many requests. Please wait a few seconds and try again."
-      );
-      return;
-    }
+      const current = Date.now();
+      if (!enforceRateLimit(current)) {
+        SecurityUtils.safeRender(
+          resultOutput,
+          "Too many requests. Please wait a few seconds and try again."
+        );
+        return;
+      }
 
-    const url = SecurityUtils.sanitizeText(urlInput.value, 200);
-    const note = SecurityUtils.sanitizeText(noteInput.value, 300);
+      const url = SecurityUtils.sanitizeText(urlInput.value, 200);
+      const note = SecurityUtils.sanitizeText(noteInput.value, 300);
 
-    if (!SecurityUtils.isSafeUrl(url)) {
-      SecurityUtils.safeRender(
-        resultOutput,
-        "Blocked: URL is invalid or uses an unsafe scheme. Allowed: http, https."
-      );
-      return;
-    }
+      if (!SecurityUtils.isSafeUrl(url)) {
+        SecurityUtils.safeRender(
+          resultOutput,
+          "Blocked: URL is invalid or uses an unsafe scheme. Allowed: http, https."
+        );
+        return;
+      }
 
-    const escapedNote = SecurityUtils.escapeHtml(note);
-    const noteHash = await SecurityUtils.sha256Hex(escapedNote);
+      const escapedNote = SecurityUtils.escapeHtml(note);
+      const noteHash = await SecurityUtils.sha256Hex(escapedNote);
 
-    const payload = {
-      checked_at_utc: nowIso(),
-      url,
-      url_status: "accepted",
-      note_preview: escapedNote,
-      note_sha256: noteHash,
-      security_flags: {
-        csp_expected: true,
-        escaped_rendering: true,
-        rate_limited_form: true,
-      },
-    };
+      const payload = {
+        checked_at_utc: nowIso(),
+        url,
+        url_status: "accepted",
+        note_preview: escapedNote,
+        note_sha256: noteHash,
+        security_flags: {
+          csp_expected: true,
+          escaped_rendering: true,
+          rate_limited_form: true,
+        },
+      };
 
-    SecurityUtils.safeRender(resultOutput, JSON.stringify(payload, null, 2));
-  });
+      SecurityUtils.safeRender(resultOutput, JSON.stringify(payload, null, 2));
+    });
+  }
 
   if (refreshThreatFeed && threatFeedOutput) {
     refreshThreatFeed.addEventListener("click", async () => {
@@ -784,4 +784,20 @@
   }
 
   initRayToggle();
+
+  // Mobile navigation toggle (shared across site pages)
+  try {
+    const navToggle = document.getElementById("navToggleBtn");
+    const primaryNav = document.getElementById("primary-nav");
+    if (navToggle && primaryNav) {
+      navToggle.addEventListener("click", () => {
+        const expanded = navToggle.getAttribute("aria-expanded") === "true";
+        navToggle.setAttribute("aria-expanded", String(!expanded));
+        primaryNav.classList.toggle("open", !expanded);
+      });
+    }
+  } catch (e) {
+    // Non-fatal: navigation enhancement failed
+    console.warn("Nav toggle init failed", e);
+  }
 })(window);
