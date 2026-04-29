@@ -102,6 +102,58 @@ export type DnsSimulatorStoreResponse = {
   created_at_utc: string;
 };
 
+export type YaraScanResponse = {
+  status: string;
+  scan_id: string;
+  matches: Array<{
+    rule_name: string;
+    severity: string;
+    matched_strings: string[];
+    affected_events: number;
+  }>;
+  total_matches: number;
+};
+
+export type AdminStatsResponse = {
+  timestamp: string;
+  uptime_hours: number;
+  db_size_mb: number;
+  total_ioc_reports: number;
+  total_scans: number;
+  total_event_logs: number;
+  total_dns_events: number;
+  threat_feeds_synced: number;
+  api_requests_today: number;
+  cpu_usage_percent: number;
+  memory_usage_percent: number;
+};
+
+export type ThreatFeedSyncResponse = {
+  status: string;
+  feeds_synced: number;
+  new_indicators: number;
+  created_at_utc: string;
+};
+
+export type DetectionRuleResponse = {
+  status: string;
+  rule_id: string;
+  created_at_utc: string;
+  message?: string;
+};
+
+export type DetectionRuleListResponse = {
+  rules: Array<{
+    id: string;
+    name: string;
+    description: string;
+    severity: string;
+    enabled: boolean;
+    hit_count: number;
+  }>;
+  total_count: number;
+};
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
@@ -214,4 +266,69 @@ export function submitDnsSimulatorEvents(
 
 export function fetchDnsSimulatorHistory() {
   return requestJson<HistoryResponse>("/api/history/dns-simulator");
+}
+
+// YARA Scanning
+export function submitYaraScan(events: Array<Record<string, unknown>>, source = "ui-yara-scanner") {
+  return requestJson<YaraScanResponse>("/api/yara/scan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ events, source })
+  });
+}
+
+// Admin Stats
+export function fetchAdminStats() {
+  return requestJson<AdminStatsResponse>("/api/admin/stats");
+}
+
+// Threat Feed Syncing
+export function syncThreatFeeds(feedSources?: string[]) {
+  return requestJson<ThreatFeedSyncResponse>("/api/threat-feeds/sync", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ feed_sources: feedSources || [] })
+  });
+}
+
+export function fetchThreatIndicators(severity?: string, limit?: number) {
+  const params = new URLSearchParams();
+  if (severity) params.append("severity", severity);
+  if (limit) params.append("limit", String(limit));
+  return requestJson<HistoryResponse>(`/api/threat-indicators?${params.toString()}`);
+}
+
+// Detection Rules
+export function createDetectionRule(rule: Record<string, unknown>) {
+  return requestJson<DetectionRuleResponse>("/api/detection-rules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(rule)
+  });
+}
+
+export function fetchDetectionRules() {
+  return requestJson<DetectionRuleListResponse>("/api/detection-rules");
+}
+
+export function updateDetectionRule(ruleId: string, enabled: boolean) {
+  return requestJson<DetectionRuleResponse>(`/api/detection-rules/${ruleId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ enabled })
+  });
+}
+
+export function deleteDetectionRule(ruleId: string) {
+  return requestJson<DetectionRuleResponse>(`/api/detection-rules/${ruleId}`, {
+    method: "DELETE"
+  });
 }
